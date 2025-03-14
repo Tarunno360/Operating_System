@@ -1,27 +1,30 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+
 int main(int argc, char *argv[]) {
-        if (argc != 2) {
-        printf("Usage: %s <filename>\n", argv[0]);
+    if (argc != 2) {
+        printf("Please enter with : %s <filename>\n", argv[0]);
         return 1;
     }
 
-    FILE *file = fopen(argv[1], "a");
-
-    if (file == NULL) {
-        perror("Error opening file");
-        return 1;
-    }
-
+    FILE *file = fopen(argv[1], "w");
+    
     char userInput[256];
+
     while (1) {
-        printf("Enter a string to write to the file (or -1 to stop): ");
+        printf("Enter a string to write to your selected file (if you want to stop press: -1): ");
         fgets(userInput, sizeof(userInput), stdin);
+        int i = 0;
+        while (userInput[i] != '\0') {
+            if (userInput[i] == '\n') {
+                userInput[i] = '\0';
+                break;
+            }
+            i++;
+        }
 
-        userInput[strcspn(userInput, "\n")] = '\0';
-
-        if (strcmp(userInput, "-1") == 0) {
+        // Check if input is "-1" manually
+        if (userInput[0] == '-' && userInput[1] == '1' && userInput[2] == '\0') {
             break;
         }
 
@@ -29,7 +32,6 @@ int main(int argc, char *argv[]) {
     }
 
     fclose(file);
-
     printf("Data has been written to %s successfully.\n", argv[1]);
 
     return 0;
