@@ -21,7 +21,7 @@ int main() {
             exit(1);
         } else if (grandchild_pid == 0) {
             printf("I am grandchild\n");
-            exit(0); // Grandchild exits
+            exit(0); 
         } else {
             wait(NULL);
             printf("I am child\n");

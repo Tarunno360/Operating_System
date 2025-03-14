@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
         printf("Sorted array in descending order (Child Process): ");
         for (int i = 0; i < n; i++) {
             printf("%d ", arr[i]);
-            fprintf(fp, "%d\n", arr[i]); // Store sorted numbers in file
+            fprintf(fp, "%d\n", arr[i]); 
         }
         printf("\n");
         fclose(fp);
