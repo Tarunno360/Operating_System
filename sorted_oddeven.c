@@ -30,11 +30,11 @@ int main(int argc, char *argv[]) {
         } else if (pid_oddeven > 0) {
             wait(NULL);  
         } else {
-            printf("fork failed for oddeven.c");
+            perror("fork failed for oddeven.c");
             exit(1);
         }
     } else {
-        printf("fork failed for sort.c");
+        perror("fork failed for sort.c");
         exit(1);
     }
 
