@@ -4,9 +4,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#define TEMP_FILE "sorted_numbers.txt"  // Temporary file for sharing data
+#define TEMP_FILE "sorted_numbers.txt" 
 
-// Comparator function for sorting in descending order
+
 int compare(const void *a, const void *b) {
     return (*(int *)b - *(int *)a);
 }
@@ -20,7 +20,6 @@ int main(int argc, char *argv[]) {
     int n = argc - 1;
     int arr[n];
 
-    // Convert arguments to integers
     for (int i = 0; i < n; i++) {
         arr[i] = atoi(argv[i + 1]);
     }
@@ -32,10 +31,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     else if (pid == 0) {
-        // Child process: Sort the array
+        
         qsort(arr, n, sizeof(int), compare);
 
-        // Write sorted array to a temporary file
+       
         FILE *fp = fopen(TEMP_FILE, "w");
         if (fp == NULL) {
             perror("Error opening file");
@@ -50,13 +49,11 @@ int main(int argc, char *argv[]) {
         printf("\n");
         fclose(fp);
 
-        exit(0); // Child exits after sorting
+        exit(0); 
     }
     else {
-        // Parent process: Wait for child to finish
         wait(NULL);
 
-        // Parent reads sorted array from file
         FILE *fp = fopen(TEMP_FILE, "r");
         if (fp == NULL) {
             perror("Error opening file");
@@ -74,7 +71,7 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
 
-        // Remove temporary file
+        
         remove(TEMP_FILE);
     }
 
