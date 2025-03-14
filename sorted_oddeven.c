@@ -1,15 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-
-#define TEMP_FILE "sorted_numbers.txt" 
-
-
-int compare(const void *a, const void *b) {
-    return (*(int *)b - *(int *)a);
-}
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -17,64 +10,33 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    int n = argc - 1;
-    int arr[n];
+    pid_t pid_sort, pid_oddeven;
 
-    for (int i = 0; i < n; i++) {
-        arr[i] = atoi(argv[i + 1]);
-    }
+    pid_sort = fork();
 
-    pid_t pid = fork();
+    if (pid_sort == 0) { 
 
-    if (pid < 0) {
-        perror("Fork failed");
-        return 1;
-    }
-    else if (pid == 0) {
-        
-        qsort(arr, n, sizeof(int), compare);
+        execvp("./sort", argv);  
 
-       
-        FILE *fp = fopen(TEMP_FILE, "w");
-        if (fp == NULL) {
-            perror("Error opening file");
+    } else if (pid_sort > 0) { 
+        wait(NULL);  
+
+        pid_oddeven = fork();
+
+        if (pid_oddeven == 0) {  
+
+            execvp("./oddeven", argv);  
+
+        } else if (pid_oddeven > 0) {
+            wait(NULL);  
+        } else {
+            printf("fork failed for oddeven.c");
             exit(1);
         }
-        
-        printf("Sorted array in descending order (Child Process): ");
-        for (int i = 0; i < n; i++) {
-            printf("%d ", arr[i]);
-            fprintf(fp, "%d\n", arr[i]); 
-        }
-        printf("\n");
-        fclose(fp);
-
-        exit(0); 
-    }
-    else {
-        wait(NULL);
-
-        FILE *fp = fopen(TEMP_FILE, "r");
-        if (fp == NULL) {
-            perror("Error opening file");
-            return 1;
-        }
-
-        printf("Odd/Even status (Parent Process):\n");
-        int num;
-        while (fscanf(fp, "%d", &num) != EOF) {
-            if (num % 2 == 0) {
-                printf("%d is Even\n", num);
-            } else {
-                printf("%d is Odd\n", num);
-            }
-        }
-        fclose(fp);
-
-        
-        remove(TEMP_FILE);
+    } else {
+        printf("fork failed for sort.c");
+        exit(1);
     }
 
     return 0;
 }
-

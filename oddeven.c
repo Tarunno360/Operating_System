@@ -3,7 +3,7 @@
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("Usage: %s <numbers>\n", argv[0]);
+        printf("Please enter with some odd even numbers: %s <numbers>\n", argv[0]);
         return 1;
     }
 

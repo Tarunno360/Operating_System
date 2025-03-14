@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int compare(const void *a, const void *b) {
+int compare_between_two_value(const void *a, const void *b) {
     return (*(int *)b - *(int *)a);
 }
 
@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
         arr[i] = atoi(argv[i + 1]);
     }
 
-    qsort(arr, n, sizeof(int), compare);
+    qsort(arr, n, sizeof(int), compare_between_two_value);
 
     printf("Sorted array in descending order: ");
     for (int i = 0; i < n; i++) {
