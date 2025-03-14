@@ -22,8 +22,6 @@ int main(int argc, char *argv[]) {
             }
             i++;
         }
-
-        // Check if input is "-1" manually
         if (userInput[0] == '-' && userInput[1] == '1' && userInput[2] == '\0') {
             break;
         }
