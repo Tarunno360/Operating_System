@@ -31,6 +31,6 @@ int main() {
     if (getppid() != 1) {  
         printf("Total processes created: %d\n", process_count);
     }
+    //printf("Total processes created overall: %d\n", process_count);
     return 0;
 }
-
