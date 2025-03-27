@@ -29,7 +29,7 @@ int main() {
     odd_pid_child_creation();
     while (wait(NULL)>0);
     if (getppid() != 1) {  
-        printf("Total processes created: %d\n", process_count);
+        printf("Total processes created now: %d\n", process_count);
     }
     //printf("Total processes created overall: %d\n", process_count);
     return 0;
