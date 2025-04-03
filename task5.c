@@ -14,7 +14,7 @@ int main() {
         exit(1);
     }
     else if (child_pid == 0) {
-        printf("Child process ID: %d, Parent ID: %d\n", getpid(), getppid());
+        printf("Child process ID: %d\n", getpid());
 
         for (int i = 0; i < 3; i++) {
             grandchild_pid = fork();
@@ -24,7 +24,7 @@ int main() {
                 exit(1);
             }
             else if (grandchild_pid == 0) {
-                printf("Grandchild process ID: %d, Parent ID: %d\n", getpid(), getppid());
+                printf("Grand child process ID: %d\n", getpid());
                 exit(0);             }
             else {
                 wait(NULL);             }

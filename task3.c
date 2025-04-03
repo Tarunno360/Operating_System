@@ -1,36 +1,33 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-
-int process_count = 1;  
-
-void odd_pid_child_creation() {
-    if (getpid() % 2 != 0) {  
-        pid_t new_child = fork();
-        if (new_child > 0) {
-            process_count++;  
-        }
-    }
-}
-
 int main() {
-    pid_t a, b, c;
+    int a, b, c;
+    int total_process_count = 1;
 
     a = fork();
-    if (a > 0) process_count++;
-
     b = fork();
-    if (b > 0) process_count++;
-
     c = fork();
-    if (c > 0) process_count++;
-    odd_pid_child_creation();
-    while (wait(NULL)>0);
-    if (getppid() != 1) {  
-        printf("Total processes created now: %d\n", process_count);
+
+    if (a == 0) {
+        if (getpid() % 2 != 0) {
+            fork();
+            total_process_count++;
+        }
+    } else if (b == 0) {
+        if (getpid() % 2 != 0) {
+            fork();
+            total_process_count++;
+        }
+    } else if (c == 0) {
+
+        if (getpid() % 2 != 0) {
+            fork();
+            total_process_count++;
+        }
+    } else {
+        total_process_count += 3;
+        printf("Total number of processes created: %d\n", total_process_count);
     }
-    //printf("Total processes created overall: %d\n", process_count);
     return 0;
 }
