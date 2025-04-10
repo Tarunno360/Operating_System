@@ -4,3 +4,4 @@ file1.dSYM
 inp.txt
 out.txt
 "Hello"
+"test case 1"
