@@ -14,10 +14,6 @@
 char *history[HISTORY_SIZE];
 int history_count = 0;
 
-void handle_sigint(int sig) {
-    printf("\nInterrupted\n");
-}
-
 void add_to_history(const char *cmd) {
     if (history_count < HISTORY_SIZE) {
         history[history_count++] = strdup(cmd);
@@ -92,6 +88,8 @@ int execute_single(char *cmd) {
 
     pid_t pid = fork();
     if (pid == 0) {
+        signal(SIGINT, SIG_DFL);  
+
         if (input_file) {
             int in_fd = open(input_file, O_RDONLY);
             if (in_fd < 0) {
@@ -130,6 +128,8 @@ void run_pipeline(char **commands, int count) {
     for (int i = 0; i < count; ++i) {
         pipe(pipefd);
         if ((pids[i] = fork()) == 0) {
+            signal(SIGINT, SIG_DFL); 
+
             dup2(in_fd, STDIN_FILENO);
             if (i < count - 1) {
                 dup2(pipefd[1], STDOUT_FILENO);
@@ -200,7 +200,7 @@ void execute_command_chain(char *line) {
 
 int main() {
     char input[MAX_INPUT];
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT, SIG_IGN);  
 
     while (1) {
         printf("mysh> ");
