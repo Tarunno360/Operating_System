@@ -15,11 +15,7 @@
 char *history[HISTORY_SIZE];
 int history_count = 0;
 
-void handle_sigint(int sig) {
-    printf("\nInterrupted\n");
-}
-
-void add_to_history(const char *cmd) {
+void command_history_string(const char *cmd) {
     if (history_count < HISTORY_SIZE) {
         history[history_count++] = strdup(cmd);
     }
@@ -110,7 +106,7 @@ char **tokenize(char *line) {
     return tokens;
 }
 
-void parse_args_redir(char *command, char **args, char **input_file, char **output_file, int *append_mode) {
+void redirect_function_args(char *command, char **args, char **input_file, char **output_file, int *append_mode) {
     int i = 0;
     *input_file = NULL;
     *output_file = NULL;
@@ -134,11 +130,11 @@ void parse_args_redir(char *command, char **args, char **input_file, char **outp
     free(tokens);
 }
 
-int execute_single(char *cmd) {
+int single_function_exec(char *cmd) {
     char *args[MAX_ARGS];
     char *input_file = NULL, *output_file = NULL;
     int append_mode = 0;
-    parse_args_redir(cmd, args, &input_file, &output_file, &append_mode);
+    redirect_function_args(cmd, args, &input_file, &output_file, &append_mode);
 
     if (args[0] == NULL) return 0;
 
@@ -149,7 +145,7 @@ int execute_single(char *cmd) {
     }
 
     if (strcmp(args[0], "exit") == 0) {
-        printf("Exiting my shell!\n");
+        printf("Exiting my shell ...\n");
         exit(0);
     }
 
@@ -167,7 +163,7 @@ int execute_single(char *cmd) {
         if (input_file) {
             int in_fd = open(input_file, O_RDONLY);
             if (in_fd < 0) {
-                perror("Failed to open input file");
+                perror("Sorry failed to open input file. Check your input again");
                 exit(1);
             }
             dup2(in_fd, STDIN_FILENO);
@@ -177,7 +173,7 @@ int execute_single(char *cmd) {
         if (output_file) {
             int out_fd = open(output_file, O_WRONLY | O_CREAT | (append_mode ? O_APPEND : O_TRUNC), 0644);
             if (out_fd < 0) {
-                perror("Failed to open output file");
+                perror("Sorry failed to open output file. Check your input again");
                 exit(1);
             }
             dup2(out_fd, STDOUT_FILENO);
@@ -194,7 +190,7 @@ int execute_single(char *cmd) {
     }
 }
 
-void run_pipeline(char **commands, int count) {
+void pipeline_function(char **commands, int count) {
     int pipefd[2];
     int in_fd = 0;
     pid_t pids[count];
@@ -213,7 +209,7 @@ void run_pipeline(char **commands, int count) {
             char *args[MAX_ARGS];
             char *input_file = NULL, *output_file = NULL;
             int append_mode = 0;
-            parse_args_redir(commands[i], args, &input_file, &output_file, &append_mode);
+            redirect_function_args(commands[i], args, &input_file, &output_file, &append_mode);
 
             if (input_file) {
                 int in = open(input_file, O_RDONLY);
@@ -237,7 +233,7 @@ void run_pipeline(char **commands, int count) {
     }
 }
 
-void execute_command_chain(char *line) {
+void command_chaining_function(char *line) {
     char *semicolon_cmds[MAX_ARGS];
     int sc_count = 0;
     char *sc_token = strtok(line, ";");
@@ -266,8 +262,8 @@ void execute_command_chain(char *line) {
                 pipe_token = strtok(NULL, "|");
             }
 
-            if (pipe_count > 1) run_pipeline(pipe_cmds, pipe_count);
-            else continue_chain = (execute_single(pipe_cmds[0]) == 0);
+            if (pipe_count > 1) pipeline_function(pipe_cmds, pipe_count);
+            else continue_chain = (single_function_exec(pipe_cmds[0]) == 0);
         }
     }
 }
@@ -284,8 +280,8 @@ int main() {
         if (input[0] == '\n') continue;
 
         input[strcspn(input, "\n")] = 0;
-        add_to_history(input);
-        execute_command_chain(strdup(input));
+        command_history_string(input);
+        command_chaining_function(strdup(input));
     }
     return 0;
 }
