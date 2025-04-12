@@ -16,7 +16,9 @@ char *history[HISTORY_SIZE];
 int history_count = 0;
 
 void handle_sigint(int sig) {
-    printf("\nInterrupted\n");
+    // Write a newline and prompt directly to stdout
+    write(STDOUT_FILENO, "\nmysh> ", 7);
+    // Don't use printf here as it's not safe in signal handlers
 }
 
 void add_to_history(const char *cmd) {
@@ -149,7 +151,7 @@ int execute_single(char *cmd) {
     }
 
     if (strcmp(args[0], "exit") == 0) {
-        printf("Exiting my shell!\n");
+        printf("Goodbye!\n");
         exit(0);
     }
 
@@ -202,7 +204,7 @@ void run_pipeline(char **commands, int count) {
     for (int i = 0; i < count; ++i) {
         pipe(pipefd);
         if ((pids[i] = fork()) == 0) {
-            signal(SIGINT, SIG_DFL);  
+            signal(SIGINT, SIG_DFL);  // Child accepts Ctrl+C
 
             dup2(in_fd, STDIN_FILENO);
             if (i < count - 1) {
@@ -274,7 +276,9 @@ void execute_command_chain(char *line) {
 
 int main() {
     char input[MAX_INPUT];
-    signal(SIGINT, SIG_IGN); 
+    
+    // Set up SIGINT handler for the shell
+    signal(SIGINT, handle_sigint);
 
     while (1) {
         printf("mysh> ");

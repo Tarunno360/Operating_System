@@ -1,0 +1,13 @@
+file1
+file1.c
+file1.dSYM
+final_draft
+final_draft.c
+inp.txt
+multi_command.c
+out.txt
+output.txt
+pip
+pip.c
+term_paper1
+term_paper1_final.c
