@@ -14,19 +14,16 @@
 char *history[HISTORY_SIZE];
 int history_count = 0;
 
-// Signal handler for Ctrl+C
 void handle_sigint(int sig) {
     printf("\nInterrupted\n");
 }
 
-// Store commands in history
 void add_to_history(const char *cmd) {
     if (history_count < HISTORY_SIZE) {
         history[history_count++] = strdup(cmd);
     }
 }
 
-// Tokenize a string by whitespace
 char **tokenize(char *line) {
     char **tokens = malloc(MAX_ARGS * sizeof(char *));
     int pos = 0;
