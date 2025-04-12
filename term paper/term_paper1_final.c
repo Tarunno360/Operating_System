@@ -149,7 +149,8 @@ int execute_single(char *cmd) {
     }
 
     if (strcmp(args[0], "exit") == 0) {
-        printf("Goodbye!\n");
+        printf("Exiting Shell!\n");
+        printf("Exited\n");
         exit(0);
     }
 
