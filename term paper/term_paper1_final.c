@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 #define MAX_INPUT 1024
 #define MAX_ARGS 100
@@ -13,6 +14,10 @@
 
 char *history[HISTORY_SIZE];
 int history_count = 0;
+
+void handle_sigint(int sig) {
+    printf("\nInterrupted\n");
+}
 
 void add_to_history(const char *cmd) {
     if (history_count < HISTORY_SIZE) {
@@ -23,12 +28,84 @@ void add_to_history(const char *cmd) {
 char **tokenize(char *line) {
     char **tokens = malloc(MAX_ARGS * sizeof(char *));
     int pos = 0;
-    char *token = strtok(line, " \t\r\n");
+    int length = strlen(line);
+    int i = 0;
+    char current_token[MAX_INPUT];
+    int token_len = 0;
 
-    while (token != NULL && pos < MAX_ARGS - 1) {
-        tokens[pos++] = token;
-        token = strtok(NULL, " \t\r\n");
+    while (i < length) {
+        if (isspace(line[i]) && token_len == 0) {
+            i++;
+            continue;
+        }
+
+        if (line[i] == '"' || line[i] == '\'') {
+            char quote = line[i];
+            i++;  
+            while (i < length && line[i] != quote) {
+                current_token[token_len++] = line[i++];
+            }
+            if (i < length) i++;  
+            
+        
+            while (i < length && !isspace(line[i])) {
+                if (line[i] == '\\' && i + 1 < length) {
+                    i++; 
+                    current_token[token_len++] = line[i++];
+                } else {
+                    current_token[token_len++] = line[i++];
+                }
+            }
+            
+            current_token[token_len] = '\0';
+            tokens[pos++] = strdup(current_token);
+            token_len = 0;
+            continue;
+        }
+
+        if (line[i] == '\\' && i + 1 < length) {
+            i++; 
+            current_token[token_len++] = line[i++]; 
+            continue;
+        }
+
+        if (isspace(line[i]) && token_len > 0) {
+            current_token[token_len] = '\0';
+            tokens[pos++] = strdup(current_token);
+            token_len = 0;
+            i++;
+            continue;
+        }
+
+        if (token_len > 0) {
+            current_token[token_len++] = line[i++];
+            continue;
+        }
+
+        token_len = 0;
+        while (i < length && !isspace(line[i])) {
+
+            if (line[i] == '\\' && i + 1 < length) {
+                i++;  
+                current_token[token_len++] = line[i++];
+            } else if (line[i] == '"' || line[i] == '\'') {
+                char quote = line[i++];
+                while (i < length && line[i] != quote) {
+                    current_token[token_len++] = line[i++];
+                }
+                if (i < length) i++; 
+            } else {
+                current_token[token_len++] = line[i++];
+            }
+        }
+        
+        if (token_len > 0) {
+            current_token[token_len] = '\0';
+            tokens[pos++] = strdup(current_token);
+            token_len = 0;
+        }
     }
+    
     tokens[pos] = NULL;
     return tokens;
 }
@@ -39,25 +116,22 @@ void parse_args_redir(char *command, char **args, char **input_file, char **outp
     *output_file = NULL;
     *append_mode = 0;
 
-    char *token = strtok(command, " ");
-    while (token != NULL) {
-        if (strcmp(token, "<") == 0) {
-            token = strtok(NULL, " ");
-            *input_file = token;
-        } else if (strcmp(token, ">") == 0) {
-            token = strtok(NULL, " ");
-            *output_file = token;
+    char **tokens = tokenize(command);
+    for (int j = 0; tokens[j] != NULL; j++) {
+        if (strcmp(tokens[j], "<") == 0) {
+            *input_file = tokens[++j];
+        } else if (strcmp(tokens[j], ">") == 0) {
+            *output_file = tokens[++j];
             *append_mode = 0;
-        } else if (strcmp(token, ">>") == 0) {
-            token = strtok(NULL, " ");
-            *output_file = token;
+        } else if (strcmp(tokens[j], ">>") == 0) {
+            *output_file = tokens[++j];
             *append_mode = 1;
         } else {
-            args[i++] = token;
+            args[i++] = tokens[j];
         }
-        token = strtok(NULL, " ");
     }
     args[i] = NULL;
+    free(tokens);
 }
 
 int execute_single(char *cmd) {
@@ -88,8 +162,6 @@ int execute_single(char *cmd) {
 
     pid_t pid = fork();
     if (pid == 0) {
-        signal(SIGINT, SIG_DFL);  
-
         if (input_file) {
             int in_fd = open(input_file, O_RDONLY);
             if (in_fd < 0) {
@@ -128,8 +200,6 @@ void run_pipeline(char **commands, int count) {
     for (int i = 0; i < count; ++i) {
         pipe(pipefd);
         if ((pids[i] = fork()) == 0) {
-            signal(SIGINT, SIG_DFL); 
-
             dup2(in_fd, STDIN_FILENO);
             if (i < count - 1) {
                 dup2(pipefd[1], STDOUT_FILENO);
@@ -200,7 +270,7 @@ void execute_command_chain(char *line) {
 
 int main() {
     char input[MAX_INPUT];
-    signal(SIGINT, SIG_IGN);  
+    signal(SIGINT, handle_sigint);
 
     while (1) {
         printf("mysh> ");
