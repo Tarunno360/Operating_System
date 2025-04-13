@@ -1,7 +1,2 @@
-file1
-file1.c
-file1.dSYM
-inp.txt
-out.txt
-"Hello"
-"test case 1"
+Hello world
+Another line
