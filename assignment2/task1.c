@@ -10,14 +10,9 @@ int num_search = 0;
 
 void *fibonacci_sequence_generation(void *arg) {
     sequence_capture_arr = (int *)malloc((num_of_terms + 1) * sizeof(int));
-    if (sequence_capture_arr == NULL) {
-        perror("Sorry. Array is empty");
-        pthread_exit(NULL);
-    }
-
     sequence_capture_arr[0] = 0;
-    if (num_of_terms > 0) sequence_capture_arr[1] = 1;
-
+    if (num_of_terms > 0) 
+        sequence_capture_arr[1] = 1;
     for (int i = 2; i <= num_of_terms; ++i) {
         sequence_capture_arr[i] = sequence_capture_arr[i - 1] + sequence_capture_arr[i - 2];
     }
