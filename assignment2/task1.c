@@ -6,7 +6,7 @@ int *sequence_capture_arr = NULL;
 int num_of_terms = 0;
 
 int *searching_index = NULL;
-int num_search = 0;
+int num_searched_value = 0;
 
 void *fibonacci_sequence_generation(void *arg) {
     sequence_capture_arr = (int *)malloc((num_of_terms + 1) * sizeof(int));
@@ -17,6 +17,17 @@ void *fibonacci_sequence_generation(void *arg) {
         sequence_capture_arr[i] = sequence_capture_arr[i - 1] + sequence_capture_arr[i - 2];
     }
 
+    pthread_exit(NULL);
+}
+void *fibonacci_value_search(void *arg) {
+    for (int i = 0; i < num_searched_value; ++i) {
+        int index = searching_index[i];
+        if (index >= 0 && index <= num_of_terms) {
+            printf("result of search #%d = %d\n", i + 1, sequence_capture_arr[index]);
+        } else {
+            printf("result of search #%d = -1\n", i + 1);
+        }
+    }
     pthread_exit(NULL);
 }
 
@@ -33,5 +44,18 @@ int main() {
     for (int i = 0; i <= num_of_terms; ++i) {
         printf("a[%d] = %d\n", i, sequence_capture_arr[i]);
     }
+    printf("How many numbers you are willing to search?:\n");
+    scanf("%d", &num_searched_value);
+
+    searching_index = (int *)malloc(num_searched_value * sizeof(int));
+
+    for (int i = 0; i < num_searched_value; ++i) {
+        printf("Enter search %d:\n", i + 1);
+        scanf("%d", &searching_index[i]);
+    }
+
+    pthread_create(&search_thread, NULL, fibonacci_value_search, NULL);
+    pthread_join(search_thread, NULL);
+
 return 0;
 }
