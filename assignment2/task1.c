@@ -38,6 +38,11 @@ int main() {
     printf("Enter the term of Fibonacci sequence:\n");
     scanf("%d", &num_of_terms);
 
+    while (num_of_terms < 0 || num_of_terms > 40) {
+        printf("Invalid input entered. Please enter a number between 0 and 40:\n");
+        scanf("%d", &num_of_terms);
+    }
+
     pthread_create(&fib_thread, NULL, fibonacci_sequence_generation, NULL);
     pthread_join(fib_thread, NULL);
 
@@ -46,6 +51,11 @@ int main() {
     }
     printf("How many numbers you are willing to search?:\n");
     scanf("%d", &num_searched_value);
+
+    while (num_searched_value <= 0 ) {
+        printf("Invalid input. Please enter a number greater than 0:\n");
+        scanf("%d", &num_searched_value);
+    }
 
     searching_index = (int *)malloc(num_searched_value * sizeof(int));
 
