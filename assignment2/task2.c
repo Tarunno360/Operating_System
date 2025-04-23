@@ -1,106 +1,113 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <unistd.h>
+sem_t st_semaphore;         
+sem_t student_semaphore;      
+#define max_number_student 10
+#define total_chair 3
+int current_student_waiting = 0;
+int current_total_surved = 0;
+pthread_mutex_t max_chairs_mutex;
+sem_t consultation_semaphore;  
 
-#define NUM_STUDENTS 10
-#define MAX_CHAIRS 3
+void* student_function(void* arg) {
+    int id = *((int*)arg);
+    free(arg);
 
-sem_t st_sleeping;          // Semaphore to wake up ST
-sem_t student_ready;        // Semaphore for students waiting
-pthread_mutex_t mutex;      // Mutex for critical sections
-
-int waiting_students = 0;
-int students_served = 0;
-
-void* student_thread(void* arg) {
-    int id = *(int*)arg;
-    free(arg); // Free the allocated memory
-
-    sleep(rand() % 3);  // Random arrival
-
-    pthread_mutex_lock(&mutex);
-    if (waiting_students < MAX_CHAIRS) {
+    pthread_mutex_lock(&max_chairs_mutex);
+    if (current_student_waiting < total_chair) {
         printf("Student %d started waiting for consultation\n", id);
-        waiting_students++;
-        printf("Number of students now waiting: %d\n", waiting_students);
+        current_student_waiting++;
 
-        sem_post(&st_sleeping); // Wake up the ST if sleeping
-        pthread_mutex_unlock(&mutex);
+        if (current_student_waiting == 1) {
+            sem_post(&st_semaphore); 
+        }
 
-        sem_wait(&student_ready); // Wait for ST to be ready
+        pthread_mutex_unlock(&max_chairs_mutex);
 
+        sem_wait(&student_semaphore); 
         printf("Student %d is getting consultation\n", id);
-        sleep(1);  // Consultation time
+        sleep(2); 
 
-        pthread_mutex_lock(&mutex);
-        waiting_students--;
-        students_served++;
         printf("Student %d finished getting consultation and left\n", id);
-        printf("Number of served students: %d\n", students_served);
-        pthread_mutex_unlock(&mutex);
 
+        pthread_mutex_lock(&max_chairs_mutex);
+        current_total_surved++;
+        printf("Number of served students: %d\n", current_total_surved);
+        pthread_mutex_unlock(&max_chairs_mutex);
+
+        sem_post(&consultation_semaphore); 
     } else {
         printf("No chairs remaining in lobby. Student %d Leaving.....\n", id);
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(&max_chairs_mutex);
     }
 
     pthread_exit(NULL);
 }
+void* st_function(void* arg) {
+    while (1) {
+        sem_wait(&st_semaphore); 
 
-void* st_thread(void* arg) {
-    while (students_served < NUM_STUDENTS) {
-        sem_wait(&st_sleeping);  // Sleep until a student wakes up
+        while (1) {
+            pthread_mutex_lock(&max_chairs_mutex);
+            if (current_student_waiting == 0) {
+                pthread_mutex_unlock(&max_chairs_mutex);
+                break;
+            }
 
-        pthread_mutex_lock(&mutex);
-        if (waiting_students > 0) {
-            printf("A waiting student started getting consultation\n");
-            printf("Number of students now waiting: %d\n", waiting_students);
-        }
-        pthread_mutex_unlock(&mutex);
+        sem_post(&student_semaphore);    
+        printf("A waiting student started getting consultation\n");
 
-        sem_post(&student_ready); // Allow student to get consultation
+        current_student_waiting--;
+        printf("Number of students now waiting: %d\n", current_student_waiting);
         printf("ST giving consultation\n");
+        pthread_mutex_unlock(&max_chairs_mutex);
+        sem_wait(&consultation_semaphore); 
+        }
 
-        sleep(1); // ST consult time
+        
+        pthread_mutex_lock(&max_chairs_mutex);
+        if (current_total_surved >= max_number_student) {
+            pthread_mutex_unlock(&max_chairs_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&max_chairs_mutex);
     }
 
     pthread_exit(NULL);
 }
-
 int main() {
-    srand(time(NULL));
+    pthread_t st_thread;
+    pthread_t student_threads[max_number_student];
 
-    pthread_t st, students[NUM_STUDENTS];
+    sem_init(&st_semaphore, 0, 0);
+    sem_init(&student_semaphore, 0, 0);
+    sem_init(&consultation_semaphore, 0, 0);
+    pthread_mutex_init(&max_chairs_mutex, NULL);
 
-    // Initialize semaphores and mutex
-    sem_init(&st_sleeping, 0, 0);
-    sem_init(&student_ready, 0, 0);
-    pthread_mutex_init(&mutex, NULL);
+    pthread_create(&st_thread, NULL, st_function, NULL);
 
-    // Create ST thread
-    pthread_create(&st, NULL, st_thread, NULL);
-
-    // Create student threads
-    for (int i = 0; i < NUM_STUDENTS; i++) {
+    for (int i = 0; i < max_number_student; ++i) {
         int* id = malloc(sizeof(int));
         *id = i;
-        pthread_create(&students[i], NULL, student_thread, id);
+        usleep(rand() % 900000);  
+        pthread_create(&student_threads[i], NULL, student_function, id);
     }
 
-    // Join all student threads
-    for (int i = 0; i < NUM_STUDENTS; i++) {
-        pthread_join(students[i], NULL);
+    for (int i = 0; i < max_number_student; ++i) {
+        pthread_join(student_threads[i], NULL);
     }
 
-    // ST thread may finish late
-    pthread_join(st, NULL);
+    pthread_join(st_thread, NULL);
 
-    // Cleanup
-    sem_destroy(&st_sleeping);
-    sem_destroy(&student_ready);
-    pthread_mutex_destroy(&mutex);
-
+    sem_destroy(&st_semaphore);
+    sem_destroy(&student_semaphore);
+    sem_destroy(&consultation_semaphore);
+    pthread_mutex_destroy(&max_chairs_mutex);
     return 0;
 }
+
+
+
