@@ -39,7 +39,7 @@ int main() {
     scanf("%d", &num_of_terms);
 
     while (num_of_terms < 0 || num_of_terms > 40) {
-        printf("Invalid input entered. Please enter a number between 0 and 40:\n");
+        printf("Your number is out of range. Please enter a number between 0 and 40:\n");
         scanf("%d", &num_of_terms);
     }
 
