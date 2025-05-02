@@ -9,11 +9,10 @@
 
 // Define the message structure
 struct msgbuf {
-    long mtype; // Changed to mtype to match System V message queue convention
+    long mtype; 
     char txt[6];
 };
 
-// Function to validate workspace name
 int validate_workspace(const char *workspace) {
     return strcmp(workspace, "cse321") == 0;
 }

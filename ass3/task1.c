@@ -10,8 +10,8 @@
 #define key_of_shm 1234
 
 struct shared {
-    char storing_arr[100];
-    int storing;
+    char sel[100];
+    int b;
 };
 
 int main() {
@@ -45,11 +45,11 @@ int main() {
     printf("3. Type c to Check Balance\n");
     scanf("%s", input);
 
-    strncpy(shm->storing_arr, input, sizeof(shm->storing_arr)-1);
-    shm->storing_arr[sizeof(shm->storing_arr)-1] = '\0';
-    shm->storing = 1000;
+    strncpy(shm->sel, input, sizeof(shm->sel)-1);
+    shm->sel[sizeof(shm->sel)-1] = '\0';
+    shm->b = 1000;
 
-    printf("\nYour selection: %s\n\n", shm->storing_arr);
+    printf("\nYour selection: %s\n\n", shm->sel);
 
     pid = fork();
     if (pid < 0) {
@@ -62,30 +62,30 @@ int main() {
 
         close(pipefd[0]);
 
-        if (strcmp(shm->storing_arr, "a") == 0) {
+        if (strcmp(shm->sel, "a") == 0) {
             printf("Enter amount to be added:\n");
             scanf("%d", &bank_balance);
             if (bank_balance > 0) {
-                shm->storing += bank_balance;
+                shm->b += bank_balance;
                 printf("Balance added successfully\n");
-                printf("Updated balance after addition:\n%d\n", shm->storing);
+                printf("Updated balance after addition:\n%d\n", shm->b);
             } else {
                 printf("Adding failed, Invalid amount\n");
             }
         }
-        else if (strcmp(shm->storing_arr, "w") == 0) {
+        else if (strcmp(shm->sel, "w") == 0) {
             printf("Enter amount to be withdrawn:\n");
             scanf("%d", &bank_balance);
-            if (bank_balance > 0 && bank_balance <= shm->storing) {
-                shm->storing -= bank_balance;
+            if (bank_balance > 0 && bank_balance <= shm->b) {
+                shm->b -= bank_balance;
                 printf("Balance withdrawn successfully\n");
-                printf("Updated balance after withdrawal:\n%d\n", shm->storing);
+                printf("Updated balance after withdrawal:\n%d\n", shm->b);
             } else {
                 printf("Withdrawal failed, Invalid amount\n");
             }
         }
-        else if (strcmp(shm->storing_arr, "c") == 0) {
-            printf("Your current balance is:\n%d\n", shm->storing);
+        else if (strcmp(shm->sel, "c") == 0) {
+            printf("Your current balance is:\n%d\n", shm->b);
         }
         else {
             printf("Invalid selection\n");
