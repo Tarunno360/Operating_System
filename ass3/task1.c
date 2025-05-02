@@ -62,7 +62,6 @@ int main() {
 
         close(pipefd[0]);
 
-        // Process user selection
         if (strcmp(shm->storing_arr, "a") == 0) {
             printf("Enter amount to be added:\n");
             scanf("%d", &bank_balance);
@@ -100,19 +99,15 @@ int main() {
         shmdt(shm);
         exit(0);
     }
-    else { // Parent process (home)
-        // Close write end of pipe
+    else { 
         close(pipefd[1]);
 
-        // Wait for child to terminate
         wait(NULL);
 
-        // Read from pipe
         read(pipefd[0], pipe_var, sizeof(pipe_var));
         printf("%s\n", pipe_var);
         close(pipefd[0]);
 
-        // Detach and remove shared memory
         shmdt(shm);
         shmctl(shmid, IPC_RMID, NULL);
     }
