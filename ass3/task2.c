@@ -7,8 +7,8 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 
-// Message structure for the message queue
-struct msg {
+// Custom message structure for the message queue
+struct my_msg {
     long int type;
     char txt[6];
 };
@@ -16,7 +16,7 @@ struct msg {
 int main() {
     key_t key;
     int msgid;
-    struct msg message;
+    struct my_msg message;
     pid_t pid_otp, pid_mail;
     char workspace[10];
 
