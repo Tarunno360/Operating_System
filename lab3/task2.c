@@ -59,7 +59,7 @@ int main() {
             perror("msgrcv");
             exit(1);
         }
-        printf("OTP generator received workspace name from log in: %s\n", message.txt);
+        printf("\nOTP generator received workspace name from log in: %s\n", message.txt);
 
         int otp = getpid();
         snprintf(message.txt, 6, "%d", otp);
@@ -113,7 +113,7 @@ int main() {
     }
     char otp_from_generator[6];
     strncpy(otp_from_generator, message.txt, 6);
-    printf("\nLog in received OTP from OTP generator: %s\n", otp_from_generator);
+    printf("Log in received OTP from OTP generator: %s\n", otp_from_generator);
 
     if (msgrcv(msgid, &message, sizeof(message.txt), 4, 0) == -1) {
         perror("msgrcv");

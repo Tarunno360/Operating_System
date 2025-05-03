@@ -91,11 +91,9 @@ int main() {
             printf("Invalid selection\n");
         }
 
-        // Write to pipe
         write(pipefd[1], "Thank you for using", 19);
         close(pipefd[1]);
 
-        // Detach shared memory
         shmdt(shm);
         exit(0);
     }
