@@ -17,7 +17,7 @@ int main() {
     int msgid;
     struct my_msg message;
     pid_t pid_otp, pid_mail;
-    char workspace[10];
+    char workspace_arr[10];
 
     key = ftok(".", 'A');
     if (key == -1) {
@@ -32,9 +32,9 @@ int main() {
     }
 
     printf("Please enter the workspace name:\n");
-    scanf("%s", workspace);
+    scanf("%s", workspace_arr);
 
-    if (strcmp(workspace, "cse321") != 0) {
+    if (strcmp(workspace_arr, "cse321") != 0) {
         printf("Invalid workspace name\n");
         msgctl(msgid, IPC_RMID, NULL);
         exit(0);
