@@ -152,6 +152,16 @@ void check_inode_bitmap_consistency(Superblock *sb, Inode *inodes, uint8_t *inod
 
     printf("Inode Bitmap Consistency Check Complete ✅\n");
 }
+void print_bitmap(uint8_t *bitmap, int bits, const char *label) {
+    printf("Bitmap (%s): ", label);
+    for (int i = 0; i < bits; i++) {
+        int byte = i / 8;
+        int bit = i % 8;
+        printf("%d", (bitmap[byte] >> bit) & 1);
+        if ((i + 1) % 8 == 0) printf(" ");
+    }
+    printf("\n");
+}
 
 int main() {
     FILE *img = fopen("vsfs.img", "rb");
@@ -161,6 +171,7 @@ int main() {
     Superblock sb;
     read_block(img, SUPERBLOCK_BLOCK, &sb);
     check_superblock(&sb);
+
     //data block system
     uint8_t data_bitmap[BLOCK_SIZE];
     read_block(img, DATA_BITMAP_BLOCK, data_bitmap);
@@ -176,6 +187,8 @@ int main() {
     uint8_t inode_bitmap[BLOCK_SIZE];
     read_block(img, INODE_BITMAP_BLOCK, inode_bitmap);
     check_inode_bitmap_consistency(&sb, inodes, inode_bitmap);
+    print_bitmap(inode_bitmap, sb.inode_count, "Inode");
+    print_bitmap(data_bitmap, DATA_BLOCK_COUNT, "Data");
 
 
     fclose(img);
