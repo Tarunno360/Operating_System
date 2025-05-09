@@ -3,10 +3,10 @@
 #include <string.h>
 
 #define MAX_USERS 5
-#define MAX_RESOURCES 5
+#define MAX_RESOURCES 6
 #define MAX_NAME_LEN 20
-#define MAX_ACL_ENTRIES 5
-#define MAX_CAPABILITIES 5
+#define MAX_ACL_ENTRIES 6
+#define MAX_CAPABILITIES 6
 
 typedef enum {
     READ = 1,
@@ -70,6 +70,7 @@ void checkACLAccess(ACLControlledResource *res, const char *userName, int perm) 
             return;
         }
     }
+    
     printf("ACL Check: User %s has NO entry for resource %s: Access DENIED\n", userName, res->resource.name);
 }
 
@@ -92,8 +93,8 @@ void checkCapabilityAccess(CapabilityUser *user, const char *resourceName, int p
 
 int main() {
     // Users and Resources
-    User users[MAX_USERS] = {{"Alice"}, {"Bob"}, {"Charlie"}, {"Azmain"}, {"Tarunno"}};
-    Resource resources[MAX_RESOURCES] = {{"File1"}, {"File2"}, {"File3"}, {"File4"}, {"File5"}};
+    User users[MAX_USERS] = {{"Alice"}, {"Bob"}, {"Charlie"}, {"Azmain"}, {"Tarunno"},{"Faysal"},{"Bayern Munich"}};
+    Resource resources[MAX_RESOURCES] = {{"File1"}, {"File2"}, {"File3"}, {"File4"}, {"File5"},{"File6"}};
 
     // ACL Setup
     ACLControlledResource aclResources[MAX_RESOURCES] = {
@@ -101,7 +102,8 @@ int main() {
         {resources[1], {{"Charlie", READ | EXECUTE}}, 1},
         {resources[2], {{"Alice", READ}, {"Charlie", WRITE}}, 2},
         {resources[3], {{"Azmain", READ | EXECUTE}}, 1},
-        {resources[4], {{"Tarunno", WRITE}}, 1}
+        {resources[4], {{"Tarunno", WRITE}}, 1},
+        {resources[5], {{"Bayern Munich", READ | EXECUTE}}, 1}
     };
 
     // Capability Setup
@@ -110,7 +112,11 @@ int main() {
         {users[1], {{"File1", READ}}, 1},
         {users[2], {{"File2", EXECUTE}, {"File3", WRITE}}, 2},
         {users[3], {{"File4", READ | EXECUTE}}, 1},
-        {users[4], {{"File5", WRITE}}, 1}
+        {users[4], {{"File5", WRITE}}, 1},
+        {users[5], {{"File5", WRITE}}, 1},
+        {users[6], {{"File6", READ | EXECUTE}}, 1},
+        {users[6], {{"File6", WRITE}}, 1},
+        {users[5], {{"File4", READ | EXECUTE}}, 1},
     };
 
     // Test Cases
@@ -120,6 +126,14 @@ int main() {
     checkACLAccess(&aclResources[3], "Azmain", EXECUTE);
     checkACLAccess(&aclResources[4], "Faysal", READ);
     checkACLAccess(&aclResources[2], "Tarunno", WRITE);
+    checkACLAccess(&aclResources[5], "Bayern Munich", EXECUTE);
+    checkACLAccess(&aclResources[1], "Charlie", EXECUTE);
+    checkACLAccess(&aclResources[6], "Bayern Munich", WRITE);
+    checkACLAccess(&aclResources[2], "Bayern Munich", READ);
+    checkACLAccess(&aclResources[3], "Faysal", WRITE);
+    checkACLAccess(&aclResources[4], "Azmain", READ);
+    checkACLAccess(&aclResources[5], "Tarunno", EXECUTE);
+
 
     printf("\n");
 
@@ -129,6 +143,12 @@ int main() {
     checkCapabilityAccess(&capUsers[2], "File3", WRITE);
     checkCapabilityAccess(&capUsers[3], "File4", EXECUTE);
     checkCapabilityAccess(&capUsers[4], "File5", READ);
+    checkCapabilityAccess(&capUsers[5], "File5", WRITE);
+    checkCapabilityAccess(&capUsers[6], "File6", READ);
+    checkCapabilityAccess(&capUsers[6], "File6", WRITE);
+    checkCapabilityAccess(&capUsers[5], "File4", EXECUTE);
+    checkCapabilityAccess(&capUsers[0], "File3", READ);
+    checkCapabilityAccess(&capUsers[1], "File1", READ);
 
     return 0;
 }
