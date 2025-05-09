@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+
+
+#define DATA_BLOCK_COUNT (TOTAL_BLOCKS - DATA_BLOCK_START)
 
 #define BLOCK_SIZE 4096
 #define TOTAL_BLOCKS 64
@@ -85,7 +89,53 @@ int main() {
     Superblock sb;
     read_block(img, SUPERBLOCK_BLOCK, &sb);
     check_superblock(&sb);
+    //data block system
+    uint8_t data_bitmap[BLOCK_SIZE];
+    bool block_used_by_inode[DATA_BLOCK_COUNT] = {false};
+    bool bitmap_set[DATA_BLOCK_COUNT] = {false};
+
+    Inode inodes[MAX_INODES];
+
+    read_block(img, DATA_BITMAP_BLOCK, data_bitmap);
+
+    for (int i = 0; i < INODE_TABLE_BLOCKS; ++i) {
+        read_block(img, INODE_TABLE_START + i, ((uint8_t*)inodes) + i * BLOCK_SIZE);
+    }
+
+    for (int i = 0; i < sb.inode_count; ++i) {
+        Inode *inode = &inodes[i];
+
+        if (inode->links_count == 0 || inode->dtime != 0)
+            continue;
+    
+        uint32_t db = inode->direct_block;
+        if (db >= DATA_BLOCK_START && db < TOTAL_BLOCKS) {
+            int relative = db - DATA_BLOCK_START;
+            block_used_by_inode[relative] = true;
+        }
+    }
+
+    for (int i = 0; i < DATA_BLOCK_COUNT; ++i) {
+        int byte = i / 8;
+        int bit = i % 8;
+        bitmap_set[i] = (data_bitmap[byte] >> bit) & 1;
+    }
+
+    printf("\nChecking Data Bitmap Consistency...\n");
+    
+    for (int i = 0; i < DATA_BLOCK_COUNT; ++i) {
+        int abs_block = DATA_BLOCK_START + i;
+    
+        if (bitmap_set[i] && !block_used_by_inode[i]) {
+            printf("❌ Block %d marked used in bitmap but not referenced by any inode\n", abs_block);
+        } else if (!bitmap_set[i] && block_used_by_inode[i]) {
+            printf("❌ Block %d is referenced by inode but not marked used in bitmap\n", abs_block);
+        }
+    }
+    printf("Data Bitmap Consistency Check Complete ✅\n");
+    
 
     fclose(img);
+
     return 0;
 }
