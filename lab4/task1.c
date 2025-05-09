@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_USERS 5
-#define MAX_RESOURCES 6
+#define MAX_USERS 10
+#define MAX_RESOURCES 10
 #define MAX_NAME_LEN 20
-#define MAX_ACL_ENTRIES 6
-#define MAX_CAPABILITIES 6
+#define MAX_ACL_ENTRIES 10
+#define MAX_CAPABILITIES 10
 
 typedef enum {
     READ = 1,
@@ -70,7 +70,7 @@ void checkACLAccess(ACLControlledResource *res, const char *userName, int perm) 
             return;
         }
     }
-    
+
     printf("ACL Check: User %s has NO entry for resource %s: Access DENIED\n", userName, res->resource.name);
 }
 
