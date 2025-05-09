@@ -46,7 +46,6 @@ typedef struct {
     int capCount;
 } CapabilityUser;
 
-// Utility Functions
 void printPermissions(int perm) {
     if (perm & READ) printf("Read ");
     if (perm & WRITE) printf("Write ");
