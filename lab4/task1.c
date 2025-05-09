@@ -119,7 +119,7 @@ int main() {
         {users[5], {{"File4", READ | EXECUTE}}, 1},
     };
 
-    // Test Cases
+    // ACL
     checkACLAccess(&aclResources[0], "Alice", READ);
     checkACLAccess(&aclResources[0], "Bob", WRITE);
     checkACLAccess(&aclResources[0], "Charlie", READ);
@@ -134,9 +134,7 @@ int main() {
     checkACLAccess(&aclResources[4], "Azmain", READ);
     checkACLAccess(&aclResources[5], "Tarunno", EXECUTE);
 
-
-    printf("\n");
-
+    //  CCA
     checkCapabilityAccess(&capUsers[0], "File1", WRITE);
     checkCapabilityAccess(&capUsers[1], "File1", WRITE);
     checkCapabilityAccess(&capUsers[2], "File2", EXECUTE);
