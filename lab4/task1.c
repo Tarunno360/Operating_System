@@ -14,7 +14,6 @@ typedef enum {
     EXECUTE = 4
 } Permission;
 
-// User and Resource Definitions
 typedef struct {
     char name[MAX_NAME_LEN];
 } User;
@@ -26,7 +25,7 @@ typedef struct {
 // ACL Entry
 typedef struct {
     char userName[MAX_NAME_LEN];
-    int permissions; // bitmask
+    int permissions; 
 } ACLEntry;
 
 typedef struct {
