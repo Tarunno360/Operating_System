@@ -92,7 +92,7 @@ void checkCapabilityAccess(CapabilityUser *user, const char *resourceName, int p
 
 int main() {
     // Users and Resources
-    User users[MAX_USERS] = {{"Alice"}, {"Bob"}, {"Charlie"}, {"David"}, {"Eve"}};
+    User users[MAX_USERS] = {{"Alice"}, {"Bob"}, {"Charlie"}, {"Azmain"}, {"Tarunno"}};
     Resource resources[MAX_RESOURCES] = {{"File1"}, {"File2"}, {"File3"}, {"File4"}, {"File5"}};
 
     // ACL Setup
@@ -100,8 +100,8 @@ int main() {
         {resources[0], {{"Alice", READ | WRITE}, {"Bob", READ}}, 2},
         {resources[1], {{"Charlie", READ | EXECUTE}}, 1},
         {resources[2], {{"Alice", READ}, {"Charlie", WRITE}}, 2},
-        {resources[3], {{"David", READ | EXECUTE}}, 1},
-        {resources[4], {{"Eve", WRITE}}, 1}
+        {resources[3], {{"Azmain", READ | EXECUTE}}, 1},
+        {resources[4], {{"Tarunno", WRITE}}, 1}
     };
 
     // Capability Setup
@@ -117,9 +117,9 @@ int main() {
     checkACLAccess(&aclResources[0], "Alice", READ);
     checkACLAccess(&aclResources[0], "Bob", WRITE);
     checkACLAccess(&aclResources[0], "Charlie", READ);
-    checkACLAccess(&aclResources[3], "David", EXECUTE);
-    checkACLAccess(&aclResources[4], "Eve", READ);
-    checkACLAccess(&aclResources[2], "Charlie", WRITE);
+    checkACLAccess(&aclResources[3], "Azmain", EXECUTE);
+    checkACLAccess(&aclResources[4], "Faysal", READ);
+    checkACLAccess(&aclResources[2], "Tarunno", WRITE);
 
     printf("\n");
 
