@@ -49,13 +49,11 @@ typedef struct {
 } Inode;
 #pragma pack(pop)
 
-// Utility function
 void fatal(const char *msg) {
     fprintf(stderr, "Error: %s\n", msg);
     exit(1);
 }
 
-// Read a block from the image
 void read_block(FILE *img, int block_num, void *buffer) {
     if (fseek(img, block_num * BLOCK_SIZE, SEEK_SET) != 0)
         fatal("Seek failed");
@@ -83,7 +81,7 @@ int main() {
     FILE *img = fopen("vsfs.img", "rb");
     if (!img) fatal("Cannot open vsfs.img");
 
-    // Step 1: Read Superblock
+    //super block system
     Superblock sb;
     read_block(img, SUPERBLOCK_BLOCK, &sb);
     check_superblock(&sb);
