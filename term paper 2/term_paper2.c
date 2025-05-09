@@ -84,30 +84,38 @@ void check_data_bitmap_consistency(Superblock *sb, Inode *inodes, uint8_t *data_
     bool block_used_by_inode[DATA_BLOCK_COUNT] = {false};
     bool bitmap_set[DATA_BLOCK_COUNT] = {false};
 
-    // Step 1: Parse valid inodes and mark referenced blocks
+    printf("\nChecking Data Bitmap Consistency...\n");
+
+    // Step 1: Mark blocks used by valid inodes
     for (int i = 0; i < sb->inode_count; ++i) {
         Inode *inode = &inodes[i];
 
-        // An inode is valid if: it has links and not deleted
-        if (inode->links_count == 0 || inode->dtime != 0) continue;
+        // Skip invalid inodes
+        if (inode->links_count == 0 || inode->dtime != 0)
+            continue;
 
-        uint32_t block = inode->direct_block;
-        if (block >= DATA_BLOCK_START && block < TOTAL_BLOCKS) {
+        // Check all blocks assigned to this inode (assumes contiguous from direct_block)
+        for (uint32_t j = 0; j < inode->blocks; ++j) {
+            uint32_t block = inode->direct_block + j;
+
+            if (block < DATA_BLOCK_START || block >= TOTAL_BLOCKS) {
+                printf("❌ Inode %d references invalid block %d\n", i, block);
+                continue;
+            }
+
             int relative_index = block - DATA_BLOCK_START;
             block_used_by_inode[relative_index] = true;
         }
     }
 
-    // Step 2: Parse bitmap and mark used blocks
+    // Step 2: Parse data bitmap
     for (int i = 0; i < DATA_BLOCK_COUNT; ++i) {
         int byte = i / 8;
         int bit = i % 8;
         bitmap_set[i] = (data_bitmap[byte] >> bit) & 1;
     }
 
-    // Step 3: Consistency checks
-    printf("\nChecking Data Bitmap Consistency...\n");
-
+    // Step 3: Compare and report mismatches
     for (int i = 0; i < DATA_BLOCK_COUNT; ++i) {
         int abs_block = DATA_BLOCK_START + i;
 
@@ -120,6 +128,31 @@ void check_data_bitmap_consistency(Superblock *sb, Inode *inodes, uint8_t *data_
 
     printf("Data Bitmap Consistency Check Complete ✅\n");
 }
+void check_inode_bitmap_consistency(Superblock *sb, Inode *inodes, uint8_t *inode_bitmap) {
+    printf("\nChecking Inode Bitmap Consistency...\n");
+
+    for (int i = 0; i < sb->inode_count; ++i) {
+        int byte_index = i / 8;
+        int bit_index = i % 8;
+        bool bit_set = (inode_bitmap[byte_index] >> bit_index) & 1;
+
+        bool valid_inode = (inodes[i].links_count > 0) && (inodes[i].dtime == 0);
+
+        // (a) If bit is set, inode must be valid
+        if (bit_set && !valid_inode) {
+            printf("❌ Inode %d is marked in bitmap but is invalid (links=%d, dtime=%d)\n",
+                   i, inodes[i].links_count, inodes[i].dtime);
+        }
+
+        // (b) If inode is valid, bit must be set
+        if (!bit_set && valid_inode) {
+            printf("❌ Inode %d is valid but not marked in bitmap\n", i);
+        }
+    }
+
+    printf("Inode Bitmap Consistency Check Complete ✅\n");
+}
+
 int main() {
     FILE *img = fopen("vsfs.img", "rb");
     if (!img) fatal("Cannot open vsfs.img");
@@ -140,6 +173,9 @@ int main() {
 
     // Run the checker
     check_data_bitmap_consistency(&sb, inodes, data_bitmap);
+    uint8_t inode_bitmap[BLOCK_SIZE];
+    read_block(img, INODE_BITMAP_BLOCK, inode_bitmap);
+    check_inode_bitmap_consistency(&sb, inodes, inode_bitmap);
 
 
     fclose(img);
