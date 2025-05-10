@@ -475,9 +475,9 @@ void detect_bad_blocks() {
 }
 
 void repair_errors() {
-    printf("Fixing file system errors...\n");
+    printf("Fixing file system errors(if any)...\n");
 
-    printf("Fixing inode bitmap...\n");
+    printf("Fixing inode bitmap(if any)...\n");
     for (uint32_t i = 0; i < sb_info->total_inodes; i++) {
         bool should_be_used = valid_inode(i);
         
@@ -488,7 +488,7 @@ void repair_errors() {
         }
     }
 
-    printf("Fixing data bitmap...\n");
+    printf("Fixing data bitmap(if any)...\n");
     for (uint32_t i = 0; i < (sb_info->fs_blocks_count - DATA_BLOCK_START_IDX); i++) {
         bool should_be_used = check_bit(calculated_data_bmap, i);
         
@@ -499,7 +499,7 @@ void repair_errors() {
         }
     }
     
-    printf("All errors fixed.\n\n");
+    printf("All errors fixed(if any).\n\n");
 }
 
 void save_fs_image(const char *filename) {
