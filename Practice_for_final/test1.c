@@ -5,8 +5,8 @@
 
 int main() {
     int inp1,inp2,answer1,i;
-    scanf("%d %d",&inp1,&inp2);
-    if (inp1>=inp2){
+    scanf("%d %d",&inp1,&inp2); //& deya mane address ta diye deya
+    if (inp1>=inp2){  //address er moddher value ta ante * deya lagbe
         for (i=1;i<=inp2;i++){
             if (inp1%i==0 && inp2%i==0){
                 answer1=i;
