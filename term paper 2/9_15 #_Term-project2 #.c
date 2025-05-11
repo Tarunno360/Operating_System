@@ -52,7 +52,6 @@ typedef struct {
     uint8_t unused[156];           
 } __attribute__((packed)) vsfs_inode;
 
-// Global variables
 char *disk_image = NULL;
 vsfs_super_block *sb_info = NULL;
 uint8_t *inode_bmap = NULL;
