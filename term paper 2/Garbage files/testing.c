@@ -135,12 +135,12 @@ bool load_fs_image(const char *filename) {
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
     
-    if (file_size != BLOCK_SIZE * TOTAL_BLOCKS) {
-        fprintf(stderr, "Invalid file size: expected %d bytes, got %ld bytes\n", 
-                BLOCK_SIZE * TOTAL_BLOCKS, file_size);
-        fclose(file);
-        return false;
-    }
+   // if (file_size != BLOCK_SIZE * TOTAL_BLOCKS) {
+  //      fprintf(stderr, "Invalid file size: expected %d bytes, got %ld bytes\n", 
+      //          BLOCK_SIZE * TOTAL_BLOCKS, file_size);
+    //    fclose(file);
+      //  return false;
+    //}
     
     // Allocate memory for the entire file system image
     fs_image = (char*)malloc(file_size);
