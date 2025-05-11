@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+
 #define VSFS_MAGIC 0xD34D
 #define BLOCK_SIZE 4096
 #define TOTAL_BLOCKS 64
