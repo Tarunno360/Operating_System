@@ -22,34 +22,34 @@
 #define DATA_BLOCK_START_IDX 8
 
 typedef struct {
-    uint16_t magic_value;           // Magic Bytes: 2 Bytes (0xD34D)
-    uint32_t block_dimension;       // Block size: 4 Bytes
-    uint32_t fs_blocks_count;       // Total number of blocks: 4 Bytes
-    uint32_t inode_bitmap_location; // Inode bitmap block number: 4 Bytes
-    uint32_t data_bitmap_location;  // Data bitmap block number: 4 Bytes
-    uint32_t inode_table_location;  // Inode table start block number: 4 Bytes
-    uint32_t initial_data_block;    // First data block number: 4 Bytes
-    uint32_t inode_dimension;      // Inode size: 4 Bytes
-    uint32_t total_inodes;         // Inode count: 4 Bytes
-    uint8_t padding[4058];         // Reserved: 4058 Bytes
+    uint16_t magic_value;          
+    uint32_t block_dimension;       
+    uint32_t fs_blocks_count;       
+    uint32_t inode_bitmap_location; 
+    uint32_t data_bitmap_location;  
+    uint32_t inode_table_location;  
+    uint32_t initial_data_block;    
+    uint32_t inode_dimension;      
+    uint32_t total_inodes;         
+    uint8_t padding[4058];         
 } __attribute__((packed)) vsfs_super_block;
 
 typedef struct {
-    uint32_t permissions;          // Mode: 4 Bytes
-    uint32_t owner_id;             // User ID of the file owner: 4 Bytes
-    uint32_t group_id;             // Group ID of the file owner: 4 Bytes
-    uint32_t file_size;            // File size in Bytes: 4 Bytes
-    uint32_t access_time;          // Last access time: 4 Bytes
-    uint32_t creation_time;        // Creation time: 4 Bytes
-    uint32_t modification_time;    // Last modification time: 4 Bytes
-    uint32_t deletion_time;        // Deletion time: 4 Bytes
-    uint32_t hard_links;           // Number of hard links to this inode: 4 Bytes
-    uint32_t allocated_blocks;     // Number of data blocks allocated: 4 Bytes
-    uint32_t direct_block;         // Direct block pointers: 4 Bytes
-    uint32_t single_indirect_ref;  // Single Indirect block pointer: 4 Bytes
-    uint32_t double_indirect_ref;  // Double Indirect block pointer: 4 Bytes
-    uint32_t triple_indirect_ref;  // Triple Indirect block pointer: 4 Bytes
-    uint8_t unused[156];           // Reserved: 156 Bytes
+    uint32_t permissions;  
+    uint32_t owner_id;         
+    uint32_t group_id;        
+    uint32_t file_size;       
+    uint32_t access_time;       
+    uint32_t creation_time;     
+    uint32_t modification_time; 
+    uint32_t deletion_time;      
+    uint32_t hard_links;           
+    uint32_t allocated_blocks;    
+    uint32_t direct_block;        
+    uint32_t single_indirect_ref; 
+    uint32_t double_indirect_ref;  
+    uint32_t triple_indirect_ref;  
+    uint8_t unused[156];           
 } __attribute__((packed)) vsfs_inode;
 
 // Global variables
@@ -123,7 +123,6 @@ bool mount_fs(const char *filename) {
         return false;
     }
     
-    // Get file size
     fseek(file, 0, SEEK_END);
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
@@ -176,7 +175,6 @@ void verify_superblock() {
     printf("Checking Superblock for any error\n");
     bool has_errors = false;
     
-    // Check magic number
     if (sb_info->magic_value != VSFS_MAGIC) {
         printf("ERROR DETECTED: Invalid magic number: 0x%04X (expected 0x%04X)\n", 
                sb_info->magic_value, VSFS_MAGIC);
@@ -184,7 +182,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check block size
     if (sb_info->block_dimension != BLOCK_SIZE) {
         printf("ERROR DETECTED: Invalid block size: %u (expected %u)\n", 
                sb_info->block_dimension, BLOCK_SIZE);
@@ -192,7 +189,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check total blocks
     if (sb_info->fs_blocks_count != TOTAL_BLOCKS) {
         printf("ERROR DETECTED: Invalid total blocks: %u (expected %u)\n", 
                sb_info->fs_blocks_count, TOTAL_BLOCKS);
@@ -200,7 +196,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check inode bitmap block number
     if (sb_info->inode_bitmap_location != INODE_BITMAP_IDX) {
         printf("ERROR DETECTED: Invalid inode bitmap block number: %u (expected %u)\n", 
                sb_info->inode_bitmap_location, INODE_BITMAP_IDX);
@@ -208,7 +203,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check data bitmap block number
     if (sb_info->data_bitmap_location != DATA_BITMAP_IDX) {
         printf("ERROR DETECETED: Invalid data bitmap block number: %u (expected %u)\n", 
                sb_info->data_bitmap_location, DATA_BITMAP_IDX);
@@ -216,7 +210,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check inode table start block number
     if (sb_info->inode_table_location != INODE_TABLE_START_IDX) {
         printf("ERROR DETECTED: Invalid inode table start block number: %u (expected %u)\n", 
                sb_info->inode_table_location, INODE_TABLE_START_IDX);
@@ -224,7 +217,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check first data block number
     if (sb_info->initial_data_block != DATA_BLOCK_START_IDX) {
         printf("ERROR DETECTED: Invalid first data block number: %u (expected %u)\n", 
                sb_info->initial_data_block, DATA_BLOCK_START_IDX);
@@ -232,7 +224,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check inode size
     if (sb_info->inode_dimension != INODE_SIZE) {
         printf("ERROR DETECTED: Invalid inode size: %u (expected %u)\n", 
                sb_info->inode_dimension, INODE_SIZE);
@@ -240,7 +231,6 @@ void verify_superblock() {
         has_errors = true;
     }
     
-    // Check inode count
     if (sb_info->total_inodes != MAX_INODES) {
         printf("ERROR DETECTED: Invalid inode count: %u (expected %u)\n", 
                sb_info->total_inodes, MAX_INODES);
@@ -281,14 +271,12 @@ void scan_inode_bitmap() {
     printf("Checking Inode Bitmap...\n");
     int errors = 0;
     
-    // Compute which inodes should be marked as used
     for (uint32_t i = 0; i < sb_info->total_inodes; i++) {
         if (valid_inode(i)) {
             mark_bit(calculated_inode_bmap, i);
         }
     }
     
-    // Compare with actual inode bitmap
     for (uint32_t i = 0; i < sb_info->total_inodes; i++) {
         bool should_be_used = check_bit(calculated_inode_bmap, i);
         bool is_used = check_bit(inode_bmap, i);
@@ -310,24 +298,22 @@ void scan_inode_bitmap() {
 
 void verify_block_references(uint32_t block_ref, int inode_num) {
     if (block_ref == 0) {
-        return;  // Null pointer, nothing to do
+        return;  
     }
     
-    // Check if the block pointer is valid (within range)
     if (block_ref >= sb_info->fs_blocks_count) {
         printf("ERROR: Inode %d references invalid block %u (out of range)\n", 
                inode_num, block_ref);
         return;
     }
     
-    // Mark the block as referenced
     mark_bit(calculated_data_bmap, block_ref - DATA_BLOCK_START_IDX);
     block_references[block_ref]++;
 }
 
 void process_indirect_blocks(uint32_t block_ref, int level, int inode_num) {
     if (block_ref == 0) {
-        return;  // Null pointer
+        return; 
     }
     
     if (processed_blocks[block_ref]) {
@@ -351,14 +337,14 @@ void process_indirect_blocks(uint32_t block_ref, int level, int inode_num) {
         uint32_t entry = indirect_entries[i];
         if (entry == 0) continue;
         
-        if (level == 1) {  // Single indirect
+        if (level == 1) {  
             verify_block_references(entry, inode_num);
-        } else if (level > 1) {  // Double or triple indirect
+        } else if (level > 1) {  
             process_indirect_blocks(entry, level - 1, inode_num);
         }
     }
     
-    processed_blocks[block_ref] = false;  // Unmark for future traversals
+    processed_blocks[block_ref] = false;  
 }
 
 void scan_data_bitmap() {
@@ -443,7 +429,7 @@ void detect_bad_blocks() {
         if (inode->direct_block != 0 && inode->direct_block >= sb_info->fs_blocks_count) {
             printf("ERROR: Inode %u has invalid direct block pointer: %u\n", i, inode->direct_block);
             bad_blocks++;
-            // Fix the error by setting to null
+            
             inode->direct_block = 0;
         }
         
