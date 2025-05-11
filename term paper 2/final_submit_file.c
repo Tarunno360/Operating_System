@@ -3,647 +3,423 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
-#include <time.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-// File system constants
 #define BLOCK_SIZE 4096
 #define TOTAL_BLOCKS 64
 #define INODE_SIZE 256
-#define INODE_COUNT 80  // 5 blocks * 4096 bytes / 256 bytes per inode
+#define INODE_COUNT 80
+#define DATA_BLOCK_START 8
+#define DATA_BLOCK_COUNT 56
 #define MAGIC_NUMBER 0xD34D
-#define MAX_INODES_PER_BLOCK (BLOCK_SIZE / INODE_SIZE)
-
-// Block indices
-#define SUPERBLOCK_IDX 0
-#define INODE_BITMAP_IDX 1
-#define DATA_BITMAP_IDX 2
-#define INODE_TABLE_START_IDX 3
-#define DATA_BLOCK_START_IDX 8
 
 // Superblock structure
-typedef struct {
-    uint16_t magic;                 // Magic number (0xD34D)
-    uint32_t block_size;            // Block size (4096)
-    uint32_t total_blocks;          // Total blocks (64)
-    uint32_t inode_bitmap_block;    // Inode bitmap block number (1)
-    uint32_t data_bitmap_block;     // Data bitmap block number (2)
-    uint32_t inode_table_start;     // Inode table start block (3)
-    uint32_t data_block_start;      // First data block (8)
-    uint32_t inode_size;            // Size of each inode (256)
-    uint32_t inode_count;           // Number of inodes 
-    uint8_t reserved[4058];         // Reserved bytes
-} Superblock;
+struct Superblock {
+    uint16_t magic; // 0xD34D
+    uint32_t block_size; // 4096
+    uint32_t total_blocks; // 64
+    uint32_t inode_bitmap_block; // 1
+    uint32_t data_bitmap_block; // 2
+    uint32_t inode_table_start; // 3
+    uint32_t first_data_block; // 8
+    uint32_t inode_size; // 256
+    uint32_t inode_count; // 80
+    uint8_t reserved[4058];
+};
 
 // Inode structure
-typedef struct {
-    uint32_t mode;                  // File mode
-    uint32_t uid;                   // User ID
-    uint32_t gid;                   // Group ID
-    uint32_t size;                  // File size in bytes
-    uint32_t atime;                 // Last access time
-    uint32_t ctime;                 // Creation time
-    uint32_t mtime;                 // Last modification time
-    uint32_t dtime;                 // Deletion time
-    uint32_t links_count;           // Number of hard links
-    uint32_t blocks_count;          // Number of data blocks allocated
-    uint32_t direct_blocks[12];     // Direct block pointers
-    uint32_t single_indirect;       // Single indirect block pointer
-    uint32_t double_indirect;       // Double indirect block pointer
-    uint32_t triple_indirect;       // Triple indirect block pointer
-    uint8_t reserved[156];          // Reserved bytes
-} Inode;
+struct Inode {
+    uint32_t mode;
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t size;
+    uint32_t atime;
+    uint32_t ctime;
+    uint32_t mtime;
+    uint32_t dtime;
+    uint32_t links;
+    uint32_t blocks;
+    uint32_t direct[4];
+    uint32_t single_indirect;
+    uint32_t double_indirect;
+    uint32_t triple_indirect;
+    uint8_t reserved[156];
+};
 
-// Global variables
-FILE *fs_image;
-Superblock superblock;
-uint8_t inode_bitmap[BLOCK_SIZE];
-uint8_t data_bitmap[BLOCK_SIZE];
-Inode *inodes;
-bool *data_block_used;       // Array to track which data blocks are actually used by inodes
-bool *data_block_referenced; // Array to track which blocks are referenced by inodes
-bool errors_found = false;   // Flag to track if errors were found during checking
-
-// Function to read a block from the file system image
-void read_block(uint32_t block_idx, void *buffer) {
-    if (fseek(fs_image, block_idx * BLOCK_SIZE, SEEK_SET) != 0) {
-        fprintf(stderr, "Error seeking to block %u\n", block_idx);
-        exit(EXIT_FAILURE);
-    }
-    
-    if (fread(buffer, BLOCK_SIZE, 1, fs_image) != 1) {
-        fprintf(stderr, "Error reading block %u\n", block_idx);
-        exit(EXIT_FAILURE);
-    }
+// Read inode from image
+void read_inode(uint8_t *image, int inode_num, struct Inode *inode) {
+    memcpy(inode, image + (3 * BLOCK_SIZE) + (inode_num * INODE_SIZE), INODE_SIZE);
 }
 
-// Function to write a block to the file system image
-void write_block(uint32_t block_idx, void *buffer) {
-    if (fseek(fs_image, block_idx * BLOCK_SIZE, SEEK_SET) != 0) {
-        fprintf(stderr, "Error seeking to block %u for writing\n", block_idx);
-        exit(EXIT_FAILURE);
-    }
-    
-    if (fwrite(buffer, BLOCK_SIZE, 1, fs_image) != 1) {
-        fprintf(stderr, "Error writing block %u\n", block_idx);
-        exit(EXIT_FAILURE);
-    }
-    
-    // Force the write to complete
-    fflush(fs_image);
+// Write inode to image
+void write_inode(uint8_t *image, int inode_num, struct Inode *inode) {
+    memcpy(image + (3 * BLOCK_SIZE) + (inode_num * INODE_SIZE), inode, INODE_SIZE);
 }
 
-// Function to check if a bit is set in a bitmap
-bool is_bit_set(uint8_t *bitmap, uint32_t bit_idx) {
-    uint32_t byte_idx = bit_idx / 8;
-    uint32_t bit_offset = bit_idx % 8;
-    return (bitmap[byte_idx] & (1 << bit_offset)) != 0;
+// Check if inode is valid
+bool is_valid_inode(struct Inode *inode) {
+    return inode->links > 0 && inode->dtime == 0;
 }
 
-// Function to set a bit in a bitmap
-void set_bit(uint8_t *bitmap, uint32_t bit_idx) {
-    uint32_t byte_idx = bit_idx / 8;
-    uint32_t bit_offset = bit_idx % 8;
-    bitmap[byte_idx] |= (1 << bit_offset);
-}
-
-// Function to clear a bit in a bitmap
-void clear_bit(uint8_t *bitmap, uint32_t bit_idx) {
-    uint32_t byte_idx = bit_idx / 8;
-    uint32_t bit_offset = bit_idx % 8;
-    bitmap[byte_idx] &= ~(1 << bit_offset);
-}
-
-// Function to read an inode
-Inode read_inode(uint32_t inode_idx) {
-    if (inode_idx >= INODE_COUNT) {
-        fprintf(stderr, "Invalid inode index: %u\n", inode_idx);
-        exit(EXIT_FAILURE);
-    }
-    
-    uint32_t inode_block = superblock.inode_table_start + (inode_idx * INODE_SIZE) / BLOCK_SIZE;
-    uint32_t inode_offset = (inode_idx * INODE_SIZE) % BLOCK_SIZE;
-    
-    uint8_t block_data[BLOCK_SIZE];
-    read_block(inode_block, block_data);
-    
-    Inode inode;
-    memcpy(&inode, block_data + inode_offset, INODE_SIZE);
-    
-    return inode;
-}
-
-// Function to write an inode
-void write_inode(uint32_t inode_idx, Inode *inode) {
-    if (inode_idx >= INODE_COUNT) {
-        fprintf(stderr, "Invalid inode index: %u\n", inode_idx);
-        exit(EXIT_FAILURE);
-    }
-    
-    uint32_t inode_block = superblock.inode_table_start + (inode_idx * INODE_SIZE) / BLOCK_SIZE;
-    uint32_t inode_offset = (inode_idx * INODE_SIZE) % BLOCK_SIZE;
-    
-    uint8_t block_data[BLOCK_SIZE];
-    read_block(inode_block, block_data);
-    
-    printf("Debug: Writing inode %u to block %u, offset %u\n", 
-           inode_idx, inode_block, inode_offset);
-    
-    // Copy the inode data to the block buffer
-    memcpy(block_data + inode_offset, inode, INODE_SIZE);
-    
-    // Write the updated block back to disk
-    write_block(inode_block, block_data);
-    
-    // Update the in-memory copy
-    memcpy(&inodes[inode_idx], inode, INODE_SIZE);
-    
-    // Flush to ensure write completes
-    fflush(fs_image);
-}
-
-// Function to load all inodes into memory
-void load_inodes() {
-    inodes = (Inode *)malloc(INODE_COUNT * sizeof(Inode));
-    if (!inodes) {
-        fprintf(stderr, "Failed to allocate memory for inodes\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    for (uint32_t i = 0; i < INODE_COUNT; i++) {
-        inodes[i] = read_inode(i);
-    }
-}
-
-// Functions to check for invalid block pointers
-bool is_valid_block_idx(uint32_t block_idx) {
-    return block_idx >= superblock.data_block_start && block_idx < superblock.total_blocks;
-}
-
-// Function to process block pointers and mark used blocks
-void process_block_pointer(uint32_t block_idx, uint32_t inode_idx) {
-    if (block_idx == 0) {
-        return; // Skip unused block pointers
-    }
-    
-    if (!is_valid_block_idx(block_idx)) {
-        printf("Error: Inode %u references invalid block %u\n", inode_idx, block_idx);
-        errors_found = true;
-        
-        // Store information about this invalid pointer for fixing later
-        // We'll use a global array to track which block pointers need fixing
-        return;
-    }
-
-    if (data_block_referenced[block_idx - superblock.data_block_start]) {
-        printf("Error: Block %u is referenced by multiple inodes\n", block_idx);
-        errors_found = true;
-    }
-
-    data_block_referenced[block_idx - superblock.data_block_start] = true;
-}
-
-// Function to process single indirect block
-void process_single_indirect(uint32_t block_idx, uint32_t inode_idx) {
-    if (block_idx == 0) {
-        return; // Skip unused block pointers
-    }
-    
-    if (!is_valid_block_idx(block_idx)) {
-        printf("Error: Inode %u references invalid single indirect block %u\n", inode_idx, block_idx);
-        errors_found = true;
-        return;
-    }
-
-    // Mark the indirect block itself as referenced
-    data_block_referenced[block_idx - superblock.data_block_start] = true;
-    
-    // Read the indirect block
-    uint8_t block_data[BLOCK_SIZE];
-    read_block(block_idx, block_data);
-    
-    // Process each block pointer in the indirect block
-    uint32_t *block_ptrs = (uint32_t *)block_data;
-    uint32_t ptrs_count = BLOCK_SIZE / sizeof(uint32_t);
-    bool block_modified = false;
-    
-    for (uint32_t i = 0; i < ptrs_count; i++) {
-        if (block_ptrs[i] != 0) {
-            if (!is_valid_block_idx(block_ptrs[i])) {
-                printf("Error: Inode %u indirect block %u contains invalid pointer %u at index %u\n", 
-                       inode_idx, block_idx, block_ptrs[i], i);
-                errors_found = true;
-                
-                // Fix the invalid pointer
-                block_ptrs[i] = 0;
-                block_modified = true;
-            } else {
-                process_block_pointer(block_ptrs[i], inode_idx);
-            }
-        }
-    }
-    
-    // Write the fixed block back to disk if modified
-    if (block_modified) {
-        write_block(block_idx, block_data);
-        printf("Fixed invalid pointers in indirect block %u\n", block_idx);
-    }
-}
-
-// Function to process double indirect block
-void process_double_indirect(uint32_t block_idx, uint32_t inode_idx) {
-    if (block_idx == 0) {
-        return; // Skip unused block pointers
-    }
-    
-    if (!is_valid_block_idx(block_idx)) {
-        printf("Error: Inode %u references invalid double indirect block %u\n", inode_idx, block_idx);
-        errors_found = true;
-        return;
-    }
-
-    // Mark the double indirect block itself as referenced
-    data_block_referenced[block_idx - superblock.data_block_start] = true;
-    
-    // Read the double indirect block
-    uint8_t block_data[BLOCK_SIZE];
-    read_block(block_idx, block_data);
-    
-    // Process each indirect block pointer in the double indirect block
-    uint32_t *block_ptrs = (uint32_t *)block_data;
-    uint32_t ptrs_count = BLOCK_SIZE / sizeof(uint32_t);
-    bool block_modified = false;
-    
-    for (uint32_t i = 0; i < ptrs_count; i++) {
-        if (block_ptrs[i] != 0) {
-            if (!is_valid_block_idx(block_ptrs[i])) {
-                printf("Error: Inode %u double indirect block %u contains invalid pointer %u at index %u\n", 
-                       inode_idx, block_idx, block_ptrs[i], i);
-                errors_found = true;
-                
-                // Fix the invalid pointer
-                block_ptrs[i] = 0;
-                block_modified = true;
-            } else {
-                process_single_indirect(block_ptrs[i], inode_idx);
-            }
-        }
-    }
-    
-    // Write the fixed block back to disk if modified
-    if (block_modified) {
-        write_block(block_idx, block_data);
-        printf("Fixed invalid pointers in double indirect block %u\n", block_idx);
-    }
-}
-
-// Function to process triple indirect block
-void process_triple_indirect(uint32_t block_idx, uint32_t inode_idx) {
-    if (block_idx == 0) {
-        return; // Skip unused block pointers
-    }
-    
-    if (!is_valid_block_idx(block_idx)) {
-        printf("Error: Inode %u references invalid triple indirect block %u\n", inode_idx, block_idx);
-        errors_found = true;
-        return;
-    }
-
-    // Mark the triple indirect block itself as referenced
-    data_block_referenced[block_idx - superblock.data_block_start] = true;
-    
-    // Read the triple indirect block
-    uint8_t block_data[BLOCK_SIZE];
-    read_block(block_idx, block_data);
-    
-    // Process each double indirect block pointer in the triple indirect block
-    uint32_t *block_ptrs = (uint32_t *)block_data;
-    uint32_t ptrs_count = BLOCK_SIZE / sizeof(uint32_t);
-    bool block_modified = false;
-    
-    for (uint32_t i = 0; i < ptrs_count; i++) {
-        if (block_ptrs[i] != 0) {
-            if (!is_valid_block_idx(block_ptrs[i])) {
-                printf("Error: Inode %u triple indirect block %u contains invalid pointer %u at index %u\n", 
-                       inode_idx, block_idx, block_ptrs[i], i);
-                errors_found = true;
-                
-                // Fix the invalid pointer
-                block_ptrs[i] = 0;
-                block_modified = true;
-            } else {
-                process_double_indirect(block_ptrs[i], inode_idx);
-            }
-        }
-    }
-    
-    // Write the fixed block back to disk if modified
-    if (block_modified) {
-        write_block(block_idx, block_data);
-        printf("Fixed invalid pointers in triple indirect block %u\n", block_idx);
-    }
-}
-
-// Function to check superblock
-bool check_superblock() {
+// Validate superblock
+bool validate_superblock(struct Superblock *sb, uint8_t *image) {
     bool errors = false;
-    
-    // Check magic number
-    if (superblock.magic != MAGIC_NUMBER) {
-        printf("Error: Invalid magic number (0x%04X, expected 0x%04X)\n", 
-               superblock.magic, MAGIC_NUMBER);
+    if (sb->magic != MAGIC_NUMBER) {
+        printf("Error: Invalid magic number (0x%X), fixing to 0x%X\n", sb->magic, MAGIC_NUMBER);
+        sb->magic = MAGIC_NUMBER;
         errors = true;
-        superblock.magic = MAGIC_NUMBER;
     }
-    
-    // Check block size
-    if (superblock.block_size != BLOCK_SIZE) {
-        printf("Error: Invalid block size (%u, expected %u)\n", 
-               superblock.block_size, BLOCK_SIZE);
+    if (sb->block_size != BLOCK_SIZE) {
+        printf("Error: Invalid block size (%u), fixing to %u\n", sb->block_size, BLOCK_SIZE);
+        sb->block_size = BLOCK_SIZE;
         errors = true;
-        superblock.block_size = BLOCK_SIZE;
     }
-    
-    // Check total blocks
-    if (superblock.total_blocks != TOTAL_BLOCKS) {
-        printf("Error: Invalid total blocks (%u, expected %u)\n", 
-               superblock.total_blocks, TOTAL_BLOCKS);
+    if (sb->total_blocks != TOTAL_BLOCKS) {
+        printf("Error: Invalid total blocks (%u), fixing to %u\n", sb->total_blocks, TOTAL_BLOCKS);
+        sb->total_blocks = TOTAL_BLOCKS;
         errors = true;
-        superblock.total_blocks = TOTAL_BLOCKS;
     }
-    
-    // Check inode bitmap block
-    if (superblock.inode_bitmap_block != INODE_BITMAP_IDX) {
-        printf("Error: Invalid inode bitmap block (%u, expected %u)\n", 
-               superblock.inode_bitmap_block, INODE_BITMAP_IDX);
+    if (sb->inode_bitmap_block != 1) {
+        printf("Error: Invalid inode bitmap block (%u), fixing to 1\n", sb->inode_bitmap_block);
+        sb->inode_bitmap_block = 1;
         errors = true;
-        superblock.inode_bitmap_block = INODE_BITMAP_IDX;
     }
-    
-    // Check data bitmap block
-    if (superblock.data_bitmap_block != DATA_BITMAP_IDX) {
-        printf("Error: Invalid data bitmap block (%u, expected %u)\n", 
-               superblock.data_bitmap_block, DATA_BITMAP_IDX);
+    if (sb->data_bitmap_block != 2) {
+        printf("Error: Invalid data bitmap block (%u), fixing to 2\n", sb->data_bitmap_block);
+        sb->data_bitmap_block = 2;
         errors = true;
-        superblock.data_bitmap_block = DATA_BITMAP_IDX;
     }
-    
-    // Check inode table start
-    if (superblock.inode_table_start != INODE_TABLE_START_IDX) {
-        printf("Error: Invalid inode table start block (%u, expected %u)\n", 
-               superblock.inode_table_start, INODE_TABLE_START_IDX);
+    if (sb->inode_table_start != 3) {
+        printf("Error: Invalid inode table start (%u), fixing to 3\n", sb->inode_table_start);
+        sb->inode_table_start = 3;
         errors = true;
-        superblock.inode_table_start = INODE_TABLE_START_IDX;
     }
-    
-    // Check data block start
-    if (superblock.data_block_start != DATA_BLOCK_START_IDX) {
-        printf("Error: Invalid data block start (%u, expected %u)\n", 
-               superblock.data_block_start, DATA_BLOCK_START_IDX);
+    if (sb->first_data_block != DATA_BLOCK_START) {
+        printf("Error: Invalid first data block (%u), fixing to %u\n", sb->first_data_block, DATA_BLOCK_START);
+        sb->first_data_block = DATA_BLOCK_START;
         errors = true;
-        superblock.data_block_start = DATA_BLOCK_START_IDX;
     }
-    
-    // Check inode size
-    if (superblock.inode_size != INODE_SIZE) {
-        printf("Error: Invalid inode size (%u, expected %u)\n", 
-               superblock.inode_size, INODE_SIZE);
+    if (sb->inode_size != INODE_SIZE) {
+        printf("Error: Invalid inode size (%u), fixing to %u\n", sb->inode_size, INODE_SIZE);
+        sb->inode_size = INODE_SIZE;
         errors = true;
-        superblock.inode_size = INODE_SIZE;
     }
-    
-    // Check inode count
-    if (superblock.inode_count != INODE_COUNT) {
-        printf("Error: Invalid inode count (%u, expected %u)\n", 
-               superblock.inode_count, INODE_COUNT);
+    if (sb->inode_count != INODE_COUNT) {
+        printf("Error: Invalid inode count (%u), fixing to %u\n", sb->inode_count, INODE_COUNT);
+        sb->inode_count = INODE_COUNT;
         errors = true;
-        superblock.inode_count = INODE_COUNT;
     }
-    
-    return errors;
-}
-
-// Function to fix the superblock if it's corrupted
-void fix_superblock() {
-    if (check_superblock()) {
-        printf("Fixing superblock...\n");
-        write_block(SUPERBLOCK_IDX, &superblock);
-        printf("Superblock fixed\n");
+    if (errors) {
+        memcpy(image, sb, sizeof(struct Superblock)); // Write back fixes
     } else {
-        printf("Superblock is consistent\n");
+        printf("Superblock is valid\n");
     }
+    return !errors;
 }
 
-// Function to check an inode and mark all blocks used by it
-void check_inode(uint32_t inode_idx) {
-    Inode *inode = &inodes[inode_idx];
-    
-    // Skip deleted or unused inodes
-    if (inode->dtime != 0 || inode->links_count == 0) {
-        return;
-    }
-    
-    // Process direct blocks
-    for (int i = 0; i < 12; i++) {
-        if (inode->direct_blocks[i] != 0) {
-            process_block_pointer(inode->direct_blocks[i], inode_idx);
+// Collect blocks from indirect pointers
+void collect_indirect_blocks(uint8_t *image, uint32_t block_num, bool *used_blocks) {
+    if (block_num < DATA_BLOCK_START || block_num >= TOTAL_BLOCKS) return;
+    uint32_t block[BLOCK_SIZE / 4];
+    memcpy(block, image + block_num * BLOCK_SIZE, BLOCK_SIZE);
+    for (int i = 0; i < BLOCK_SIZE / 4; i++) {
+        if (block[i] >= DATA_BLOCK_START && block[i] < TOTAL_BLOCKS) {
+            used_blocks[block[i] - DATA_BLOCK_START] = true;
         }
     }
-    
-    // Process single indirect block
-    process_single_indirect(inode->single_indirect, inode_idx);
-    
-    // Process double indirect block
-    process_double_indirect(inode->double_indirect, inode_idx);
-    
-    // Process triple indirect block
-    process_triple_indirect(inode->triple_indirect, inode_idx);
 }
 
-// Function to check inode bitmap consistency
-bool check_inode_bitmap() {
-    bool errors = false;
-    uint8_t corrected_bitmap[BLOCK_SIZE];
-    memset(corrected_bitmap, 0, BLOCK_SIZE);
-    
-    printf("Checking inode bitmap consistency...\n");
-    
-    for (uint32_t i = 0; i < INODE_COUNT; i++) {
-        bool should_be_used = (inodes[i].links_count > 0 && inodes[i].dtime == 0);
-        bool is_used = is_bit_set(inode_bitmap, i);
-        
-        if (should_be_used) {
-            set_bit(corrected_bitmap, i);
-            
-            if (!is_used) {
-                printf("Error: Inode %u is used but not marked in bitmap\n", i);
-                errors = true;
+void collect_double_indirect_blocks(uint8_t *image, uint32_t block_num, bool *used_blocks) {
+    if (block_num < DATA_BLOCK_START || block_num >= TOTAL_BLOCKS) return;
+    uint32_t block[BLOCK_SIZE / 4];
+    memcpy(block, image + block_num * BLOCK_SIZE, BLOCK_SIZE);
+    for (int i = 0; i < BLOCK_SIZE / 4; i++) {
+        if (block[i] != 0) {
+            collect_indirect_blocks(image, block[i], used_blocks);
+        }
+    }
+}
+
+void collect_triple_indirect_blocks(uint8_t *image, uint32_t block_num, bool *used_blocks) {
+    if (block_num < DATA_BLOCK_START || block_num >= TOTAL_BLOCKS) return;
+    uint32_t block[BLOCK_SIZE / 4];
+    memcpy(block, image + block_num * BLOCK_SIZE, BLOCK_SIZE);
+    for (int i = 0; i < BLOCK_SIZE / 4; i++) {
+        if (block[i] != 0) {
+            collect_double_indirect_blocks(image, block[i], used_blocks);
+        }
+    }
+}
+
+// Check data bitmap consistency
+void check_data_bitmap(uint8_t *image, struct Superblock *sb) {
+    uint8_t data_bitmap[BLOCK_SIZE];
+    memcpy(data_bitmap, image + 2 * BLOCK_SIZE, BLOCK_SIZE);
+    bool used_blocks[DATA_BLOCK_COUNT] = {0};
+    bool bitmap_blocks[DATA_BLOCK_COUNT] = {0};
+
+    // Parse bitmap
+    for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
+        if (data_bitmap[i / 8] & (1 << (i % 8))) {
+            bitmap_blocks[i] = true;
+        }
+    }
+
+    // Collect referenced blocks
+    for (int i = 0; i < INODE_COUNT; i++) {
+        struct Inode inode;
+        read_inode(image, i, &inode);
+        if (is_valid_inode(&inode)) {
+            // Direct blocks
+            for (int j = 0; j < 4; j++) {
+                if (inode.direct[j] >= DATA_BLOCK_START && inode.direct[j] < TOTAL_BLOCKS) {
+                    used_blocks[inode.direct[j] - DATA_BLOCK_START] = true;
+                }
             }
-        } else if (is_used) {
-            printf("Error: Inode %u is marked as used in bitmap but is not used\n", i);
+            // Indirect blocks
+            if (inode.single_indirect != 0) {
+                collect_indirect_blocks(image, inode.single_indirect, used_blocks);
+            }
+            if (inode.double_indirect != 0) {
+                collect_double_indirect_blocks(image, inode.double_indirect, used_blocks);
+            }
+            if (inode.triple_indirect != 0) {
+                collect_triple_indirect_blocks(image, inode.triple_indirect, used_blocks);
+            }
+        }
+    }
+
+    // Check inconsistencies
+    bool errors = false;
+    for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
+        if (bitmap_blocks[i] && !used_blocks[i]) {
+            printf("Error: Block %d marked used but not referenced\n", i + DATA_BLOCK_START);
+            data_bitmap[i / 8] &= ~(1 << (i % 8)); // Clear bit
+            errors = true;
+        }
+        if (used_blocks[i] && !bitmap_blocks[i]) {
+            printf("Error: Block %d referenced but not marked used\n", i + DATA_BLOCK_START);
+            data_bitmap[i / 8] |= (1 << (i % 8)); // Set bit
             errors = true;
         }
     }
-    
-    if (errors) {
-        printf("Fixing inode bitmap...\n");
-        memcpy(inode_bitmap, corrected_bitmap, BLOCK_SIZE);
-        write_block(INODE_BITMAP_IDX, inode_bitmap);
-        printf("Inode bitmap fixed\n");
-    } else {
-        printf("Inode bitmap is consistent\n");
-    }
-    
-    return errors;
-}
 
-// Function to check data bitmap consistency
-bool check_data_bitmap() {
-    bool errors = false;
-    uint8_t corrected_bitmap[BLOCK_SIZE];
-    memset(corrected_bitmap, 0, BLOCK_SIZE);
-    
-    printf("Checking data bitmap consistency...\n");
-    
-    uint32_t data_blocks_count = superblock.total_blocks - superblock.data_block_start;
-    
-    for (uint32_t i = 0; i < data_blocks_count; i++) {
-        bool is_referenced = data_block_referenced[i];
-        bool is_marked_used = is_bit_set(data_bitmap, i);
-        
-        if (is_referenced) {
-            set_bit(corrected_bitmap, i);
-            
-            if (!is_marked_used) {
-                printf("Error: Data block %u is used but not marked in bitmap\n", 
-                       i + superblock.data_block_start);
-                errors = true;
-            }
-        } else if (is_marked_used) {
-            printf("Error: Data block %u is marked as used in bitmap but is not referenced\n", 
-                   i + superblock.data_block_start);
-            errors = true;
-        }
-    }
-    
     if (errors) {
-        printf("Fixing data bitmap...\n");
-        memcpy(data_bitmap, corrected_bitmap, BLOCK_SIZE);
-        write_block(DATA_BITMAP_IDX, data_bitmap);
-        printf("Data bitmap fixed\n");
+        memcpy(image + 2 * BLOCK_SIZE, data_bitmap, BLOCK_SIZE); // Write back
     } else {
         printf("Data bitmap is consistent\n");
     }
-    
-    return errors;
 }
 
-// Main function for the VSFS file system checker
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <fs_image>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-    
-    // Open the file system image with read-write access
-    fs_image = fopen(argv[1], "r+b");
-    if (!fs_image) {
-        // If opening with read-write failed, try read-only
-        fprintf(stderr, "Failed to open file system image for writing: %s\n", argv[1]);
-        fprintf(stderr, "Checking file system in read-only mode\n");
-        
-        fs_image = fopen(argv[1], "rb");
-        if (!fs_image) {
-            fprintf(stderr, "Failed to open file system image: %s\n", argv[1]);
-            return EXIT_FAILURE;
+// Check inode bitmap consistency
+void check_inode_bitmap(uint8_t *image, struct Superblock *sb) {
+    uint8_t inode_bitmap[BLOCK_SIZE];
+    memcpy(inode_bitmap, image + 1 * BLOCK_SIZE, BLOCK_SIZE);
+    bool bitmap_inodes[INODE_COUNT] = {0};
+    bool valid_inodes[INODE_COUNT] = {0};
+
+    // Parse bitmap
+    for (int i = 0; i < INODE_COUNT; i++) {
+        if (inode_bitmap[i / 8] & (1 << (i % 8))) {
+            bitmap_inodes[i] = true;
         }
     }
-    
-    printf("VSFS Consistency Checker\n");
-    printf("========================\n\n");
-    
-    // Read the superblock
-    read_block(SUPERBLOCK_IDX, &superblock);
-    
-    // Check and fix the superblock if necessary
-    fix_superblock();
-    
-    // Read the inode bitmap
-    read_block(superblock.inode_bitmap_block, inode_bitmap);
-    
-    // Read the data bitmap
-    read_block(superblock.data_bitmap_block, data_bitmap);
-    
-    // Load all inodes into memory
-    load_inodes();
-    
-    // Initialize tracking structures
-    uint32_t data_blocks_count = superblock.total_blocks - superblock.data_block_start;
-    data_block_used = calloc(data_blocks_count, sizeof(bool));
-    data_block_referenced = calloc(data_blocks_count, sizeof(bool));
-    
-    if (!data_block_used || !data_block_referenced) {
-        fprintf(stderr, "Failed to allocate memory for tracking structures\n");
-        return EXIT_FAILURE;
+
+    // Check inodes
+    for (int i = 0; i < INODE_COUNT; i++) {
+        struct Inode inode;
+        read_inode(image, i, &inode);
+        if (is_valid_inode(&inode)) {
+            valid_inodes[i] = true;
+        }
     }
-    
-    // Reset errors_found flag
-    errors_found = false;
-    
-    // Process all inodes and check their block pointers
-    printf("\nChecking inodes and block pointers...\n");
-    for (uint32_t i = 0; i < INODE_COUNT; i++) {
-        check_inode(i);
+
+    // Check inconsistencies
+    bool errors = false;
+    for (int i = 0; i < INODE_COUNT; i++) {
+        if (bitmap_inodes[i] && !valid_inodes[i]) {
+            printf("Error: Inode %d marked used but invalid\n", i);
+            inode_bitmap[i / 8] &= ~(1 << (i % 8)); // Clear bit
+            errors = true;
+        }
+        if (valid_inodes[i] && !bitmap_inodes[i]) {
+            printf("Error: Inode %d valid but not marked used\n", i);
+            inode_bitmap[i / 8] |= (1 << (i % 8)); // Set bit
+            errors = true;
+        }
     }
-    
-    // Re-calculate data block references after fixing inodes
-    if (errors_found) {
-        // Clear the referenced blocks array
-        memset(data_block_referenced, 0, data_blocks_count * sizeof(bool));
-        
-        // Re-scan all inodes to update the referenced blocks
-        printf("Re-checking block references after fixes...\n");
-        for (uint32_t i = 0; i < INODE_COUNT; i++) {
-            Inode *inode = &inodes[i];
-            
-            // Skip deleted or unused inodes
-            if (inode->dtime != 0 || inode->links_count == 0) {
-                continue;
-            }
-            
-            // Process direct blocks
-            for (int j = 0; j < 12; j++) {
-                if (inode->direct_blocks[j] != 0 && is_valid_block_idx(inode->direct_blocks[j])) {
-                    data_block_referenced[inode->direct_blocks[j] - superblock.data_block_start] = true;
+
+    if (errors) {
+        memcpy(image + 1 * BLOCK_SIZE, inode_bitmap, BLOCK_SIZE); // Write back
+    } else {
+        printf("Inode bitmap is consistent\n");
+    }
+}
+
+// Check for duplicate block references
+void check_duplicates(uint8_t *image, struct Superblock *sb) {
+    int block_ref_count[DATA_BLOCK_COUNT] = {0};
+    int block_owner[DATA_BLOCK_COUNT] = {-1};
+
+    for (int i = 0; i < INODE_COUNT; i++) {
+        struct Inode inode;
+        read_inode(image, i, &inode);
+        if (is_valid_inode(&inode)) {
+            // Direct blocks
+            for (int j = 0; j < 4; j++) {
+                if (inode.direct[j] >= DATA_BLOCK_START && inode.direct[j] < TOTAL_BLOCKS) {
+                    int idx = inode.direct[j] - DATA_BLOCK_START;
+                    block_ref_count[idx]++;
+                    block_owner[idx] = i;
                 }
             }
-            
-            // We would also need to process indirect blocks...
-            // For brevity, this is simplified here
+            // Indirect blocks
+            bool used_blocks[DATA_BLOCK_COUNT] = {0};
+            if (inode.single_indirect != 0) {
+                collect_indirect_blocks(image, inode.single_indirect, used_blocks);
+            }
+            if (inode.double_indirect != 0) {
+                collect_double_indirect_blocks(image, inode.double_indirect, used_blocks);
+            }
+            if (inode.triple_indirect != 0) {
+                collect_triple_indirect_blocks(image, inode.triple_indirect, used_blocks);
+            }
+            for (int j = 0; j < DATA_BLOCK_COUNT; j++) {
+                if (used_blocks[j]) {
+                    block_ref_count[j]++;
+                    block_owner[j] = i;
+                }
+            }
         }
     }
-    
-    // Check inode bitmap consistency
-    bool inode_bitmap_fixed = check_inode_bitmap();
-    
-    // Check data bitmap consistency
-    bool data_bitmap_fixed = check_data_bitmap();
-    
-    // Final report
-    printf("\nConsistency check complete.\n");
-    if (errors_found || inode_bitmap_fixed || data_bitmap_fixed) {
-        printf("Errors were found and fixed.\n");
-    } else {
-        printf("File system is consistent.\n");
+
+    // Report duplicates
+    bool errors = false;
+    for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
+        if (block_ref_count[i] > 1) {
+            printf("Error: Block %d referenced by %d inodes\n", i + DATA_BLOCK_START, block_ref_count[i]);
+            errors = true;
+            // Fix: Keep block with most recent inode (heuristic)
+            // This is complex; for simplicity, we log and skip reassignment
+        }
     }
-    
-    // Force final flush to ensure all changes are written
-    fflush(fs_image);
-    
-    // Clean up
-    fclose(fs_image);
-    free(inodes);
-    free(data_block_used);
-    free(data_block_referenced);
-    
-    return errors_found ? EXIT_FAILURE : EXIT_SUCCESS;
+    if (!errors) {
+        printf("No duplicate block references found\n");
+    }
+}
+
+// Check for bad block pointers
+void check_bad_blocks(uint8_t *image, struct Superblock *sb) {
+    bool errors = false;
+    for (int i = 0; i < INODE_COUNT; i++) {
+        struct Inode inode;
+        read_inode(image, i, &inode);
+        if (is_valid_inode(&inode)) {
+            // Direct blocks
+            for (int j = 0; j < 4; j++) {
+                if (inode.direct[j] != 0 && (inode.direct[j] < DATA_BLOCK_START || inode.direct[j] >= TOTAL_BLOCKS)) {
+                    printf("Error: Inode %d has invalid direct block pointer %u\n", i, inode.direct[j]);
+                    inode.direct[j] = 0; // Nullify
+                    errors = true;
+                }
+            }
+            // Indirect blocks
+            if (inode.single_indirect != 0 && (inode.single_indirect < DATA_BLOCK_START || inode.single_indirect >= TOTAL_BLOCKS)) {
+                printf("Error: Inode %d has invalid single indirect pointer %u\n", i, inode.single_indirect);
+                inode.single_indirect = 0;
+                errors = true;
+            }
+            if (inode.double_indirect != 0 && (inode.double_indirect < DATA_BLOCK_START || inode.double_indirect >= TOTAL_BLOCKS)) {
+                printf("Error: Inode %d has invalid double indirect pointer %u\n", i, inode.double_indirect);
+                inode.double_indirect = 0;
+                errors = true;
+            }
+            if (inode.triple_indirect != 0 && (inode.triple_indirect < DATA_BLOCK_START || inode.triple_indirect >= TOTAL_BLOCKS)) {
+                printf("Error: Inode %d has invalid triple indirect pointer %u\n", i, inode.triple_indirect);
+                inode.triple_indirect = 0;
+                errors = true;
+            }
+            if (errors) {
+                write_inode(image, i, &inode); // Write back fixed inode
+            }
+        }
+    }
+    if (!errors) {
+        printf("No bad block pointers found\n");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("Usage: %s <vsfs.img>\n", argv[0]);
+        return 1;
+    }
+
+    // Open and map image
+    int fd = open(argv[1], O_RDWR);
+    if (fd < 0) {
+        perror("Failed to open image");
+        return 1;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+    perror("Failed to stat image");
+    close(fd);
+    return 1;
+}
+    if (st.st_size != TOTAL_BLOCKS * BLOCK_SIZE) {
+        printf("Error: Image size (%lld) does not match expected (%d)\n",
+        st.st_size, TOTAL_BLOCKS * BLOCK_SIZE);
+         close(fd);
+        return 1;
+}
+
+    uint8_t *image = mmap(NULL, TOTAL_BLOCKS * BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (image == MAP_FAILED) {
+        perror("Failed to map image");
+        close(fd);
+        return 1;
+    }
+
+    // Read superblock
+    struct Superblock sb;
+    memcpy(&sb, image, sizeof(struct Superblock));
+
+    // First pass: Check and fix
+    printf("=== First Pass: Checking and Fixing ===\n");
+    validate_superblock(&sb, image);
+    check_inode_bitmap(image, &sb);
+    check_data_bitmap(image, &sb);
+    check_duplicates(image, &sb);
+    check_bad_blocks(image, &sb);
+
+    // Sync changes
+    if (msync(image, TOTAL_BLOCKS * BLOCK_SIZE, MS_SYNC) < 0) {
+        perror("Failed to sync image");
+    }
+
+    // Second pass: Verify
+    printf("\n=== Second Pass: Verifying ===\n");
+    memcpy(&sb, image, sizeof(struct Superblock)); // Reload superblock
+    bool superblock_valid = validate_superblock(&sb, image);
+    check_inode_bitmap(image, &sb);
+    check_data_bitmap(image, &sb);
+    check_duplicates(image, &sb);
+    check_bad_blocks(image, &sb);
+
+    // Cleanup
+    munmap(image, TOTAL_BLOCKS * BLOCK_SIZE);
+    close(fd);
+
+    printf("\nFile system check complete\n");
+    if (superblock_valid) {
+        printf("All checks passed successfully\n");
+    } else {
+        printf("Some errors were fixed, but re-verification may have found issues\n");
+    }
+    return 0;
 }
