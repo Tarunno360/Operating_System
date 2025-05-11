@@ -16,7 +16,6 @@
 #define DATA_BLOCK_COUNT 56
 #define MAGIC_NUMBER 0xD34D
 
-// Superblock structure
 struct Superblock {
     uint16_t magic; // 0xD34D
     uint32_t block_size; // 4096
@@ -30,7 +29,6 @@ struct Superblock {
     uint8_t reserved[4058];
 };
 
-// Inode structure
 struct Inode {
     uint32_t mode;
     uint32_t uid;
@@ -49,22 +47,18 @@ struct Inode {
     uint8_t reserved[156];
 };
 
-// Read inode from image
 void read_inode(uint8_t *image, int inode_num, struct Inode *inode) {
     memcpy(inode, image + (3 * BLOCK_SIZE) + (inode_num * INODE_SIZE), INODE_SIZE);
 }
 
-// Write inode to image
 void write_inode(uint8_t *image, int inode_num, struct Inode *inode) {
     memcpy(image + (3 * BLOCK_SIZE) + (inode_num * INODE_SIZE), inode, INODE_SIZE);
 }
 
-// Check if inode is valid
 bool is_valid_inode(struct Inode *inode) {
     return inode->links > 0 && inode->dtime == 0;
 }
 
-// Validate superblock
 bool validate_superblock(struct Superblock *sb, uint8_t *image) {
     bool errors = false;
     if (sb->magic != MAGIC_NUMBER) {
@@ -115,12 +109,11 @@ bool validate_superblock(struct Superblock *sb, uint8_t *image) {
     if (errors) {
         memcpy(image, sb, sizeof(struct Superblock)); // Write back fixes
     } else {
-        printf("Superblock is valid\n");
+        printf(".img files Superblock is valid\n");
     }
     return !errors;
 }
 
-// Collect blocks from indirect pointers
 void collect_indirect_blocks(uint8_t *image, uint32_t block_num, bool *used_blocks) {
     if (block_num < DATA_BLOCK_START || block_num >= TOTAL_BLOCKS) return;
     uint32_t block[BLOCK_SIZE / 4];
@@ -154,32 +147,31 @@ void collect_triple_indirect_blocks(uint8_t *image, uint32_t block_num, bool *us
     }
 }
 
-// Check data bitmap consistency
+
 void check_data_bitmap(uint8_t *image, struct Superblock *sb) {
     uint8_t data_bitmap[BLOCK_SIZE];
     memcpy(data_bitmap, image + 2 * BLOCK_SIZE, BLOCK_SIZE);
     bool used_blocks[DATA_BLOCK_COUNT] = {0};
     bool bitmap_blocks[DATA_BLOCK_COUNT] = {0};
 
-    // Parse bitmap
     for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
         if (data_bitmap[i / 8] & (1 << (i % 8))) {
             bitmap_blocks[i] = true;
         }
     }
 
-    // Collect referenced blocks
+
     for (int i = 0; i < INODE_COUNT; i++) {
         struct Inode inode;
         read_inode(image, i, &inode);
         if (is_valid_inode(&inode)) {
-            // Direct blocks
+        
             for (int j = 0; j < 4; j++) {
                 if (inode.direct[j] >= DATA_BLOCK_START && inode.direct[j] < TOTAL_BLOCKS) {
                     used_blocks[inode.direct[j] - DATA_BLOCK_START] = true;
                 }
             }
-            // Indirect blocks
+            
             if (inode.single_indirect != 0) {
                 collect_indirect_blocks(image, inode.single_indirect, used_blocks);
             }
@@ -192,7 +184,7 @@ void check_data_bitmap(uint8_t *image, struct Superblock *sb) {
         }
     }
 
-    // Check inconsistencies
+    
     bool errors = false;
     for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
         if (bitmap_blocks[i] && !used_blocks[i]) {
@@ -210,25 +202,23 @@ void check_data_bitmap(uint8_t *image, struct Superblock *sb) {
     if (errors) {
         memcpy(image + 2 * BLOCK_SIZE, data_bitmap, BLOCK_SIZE); // Write back
     } else {
-        printf("Data bitmap is consistent\n");
+        printf(".img files Data bitmap is consistent\n");
     }
 }
 
-// Check inode bitmap consistency
+
 void check_inode_bitmap(uint8_t *image, struct Superblock *sb) {
     uint8_t inode_bitmap[BLOCK_SIZE];
     memcpy(inode_bitmap, image + 1 * BLOCK_SIZE, BLOCK_SIZE);
     bool bitmap_inodes[INODE_COUNT] = {0};
     bool valid_inodes[INODE_COUNT] = {0};
 
-    // Parse bitmap
     for (int i = 0; i < INODE_COUNT; i++) {
         if (inode_bitmap[i / 8] & (1 << (i % 8))) {
             bitmap_inodes[i] = true;
         }
     }
 
-    // Check inodes
     for (int i = 0; i < INODE_COUNT; i++) {
         struct Inode inode;
         read_inode(image, i, &inode);
@@ -237,7 +227,7 @@ void check_inode_bitmap(uint8_t *image, struct Superblock *sb) {
         }
     }
 
-    // Check inconsistencies
+
     bool errors = false;
     for (int i = 0; i < INODE_COUNT; i++) {
         if (bitmap_inodes[i] && !valid_inodes[i]) {
@@ -255,11 +245,11 @@ void check_inode_bitmap(uint8_t *image, struct Superblock *sb) {
     if (errors) {
         memcpy(image + 1 * BLOCK_SIZE, inode_bitmap, BLOCK_SIZE); // Write back
     } else {
-        printf("Inode bitmap is consistent\n");
+        printf(".img files Inode bitmap is consistent\n");
     }
 }
 
-// Check for duplicate block references
+
 void check_duplicates(uint8_t *image, struct Superblock *sb) {
     int block_ref_count[DATA_BLOCK_COUNT] = {0};
     int block_owner[DATA_BLOCK_COUNT] = {-1};
@@ -296,14 +286,12 @@ void check_duplicates(uint8_t *image, struct Superblock *sb) {
         }
     }
 
-    // Report duplicates
     bool errors = false;
     for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
         if (block_ref_count[i] > 1) {
             printf("Error: Block %d referenced by %d inodes\n", i + DATA_BLOCK_START, block_ref_count[i]);
             errors = true;
-            // Fix: Keep block with most recent inode (heuristic)
-            // This is complex; for simplicity, we log and skip reassignment
+            
         }
     }
     if (!errors) {
@@ -311,22 +299,20 @@ void check_duplicates(uint8_t *image, struct Superblock *sb) {
     }
 }
 
-// Check for bad block pointers
+
 void check_bad_blocks(uint8_t *image, struct Superblock *sb) {
     bool errors = false;
     for (int i = 0; i < INODE_COUNT; i++) {
         struct Inode inode;
         read_inode(image, i, &inode);
         if (is_valid_inode(&inode)) {
-            // Direct blocks
             for (int j = 0; j < 4; j++) {
                 if (inode.direct[j] != 0 && (inode.direct[j] < DATA_BLOCK_START || inode.direct[j] >= TOTAL_BLOCKS)) {
                     printf("Error: Inode %d has invalid direct block pointer %u\n", i, inode.direct[j]);
-                    inode.direct[j] = 0; // Nullify
+                    inode.direct[j] = 0;
                     errors = true;
                 }
             }
-            // Indirect blocks
             if (inode.single_indirect != 0 && (inode.single_indirect < DATA_BLOCK_START || inode.single_indirect >= TOTAL_BLOCKS)) {
                 printf("Error: Inode %d has invalid single indirect pointer %u\n", i, inode.single_indirect);
                 inode.single_indirect = 0;
@@ -358,7 +344,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Open and map image
+
     int fd = open(argv[1], O_RDWR);
     if (fd < 0) {
         perror("Failed to open image");
@@ -373,10 +359,10 @@ int main(int argc, char *argv[]) {
 }
     if (st.st_size != TOTAL_BLOCKS * BLOCK_SIZE) {
         printf("Error: Image size (%lld) does not match expected (%d)\n",
-        st.st_size, TOTAL_BLOCKS * BLOCK_SIZE);
-         close(fd);
-        return 1;
-}
+     st.st_size, TOTAL_BLOCKS * BLOCK_SIZE);
+      close(fd);
+     return 1;
+    }
 
     uint8_t *image = mmap(NULL, TOTAL_BLOCKS * BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (image == MAP_FAILED) {
@@ -385,25 +371,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Read superblock
     struct Superblock sb;
     memcpy(&sb, image, sizeof(struct Superblock));
-
-    // First pass: Check and fix
-    printf("=== First Pass: Checking and Fixing ===\n");
+    printf("WELCOME ....\n");
+    printf("=== A Consistency Checker for Very Simple File System (VSFS)===\n");
+    printf("Checking Superblock...\n");
     validate_superblock(&sb, image);
+    printf("Checking Inode Bitmap...\n");
     check_inode_bitmap(image, &sb);
+    printf("Checking Data Bitmap...\n");
     check_data_bitmap(image, &sb);
+    printf("Checking for Duplicate Blocks...\n");
     check_duplicates(image, &sb);
+    printf("Checking for Bad Blocks...\n");
     check_bad_blocks(image, &sb);
 
-    // Sync changes
     if (msync(image, TOTAL_BLOCKS * BLOCK_SIZE, MS_SYNC) < 0) {
         perror("Failed to sync image");
     }
 
-    // Second pass: Verify
-    printf("\n=== Second Pass: Verifying ===\n");
+    printf("\n===Verifying Again for any error===\n");
     memcpy(&sb, image, sizeof(struct Superblock)); // Reload superblock
     bool superblock_valid = validate_superblock(&sb, image);
     check_inode_bitmap(image, &sb);
@@ -411,11 +398,10 @@ int main(int argc, char *argv[]) {
     check_duplicates(image, &sb);
     check_bad_blocks(image, &sb);
 
-    // Cleanup
     munmap(image, TOTAL_BLOCKS * BLOCK_SIZE);
     close(fd);
 
-    printf("\nFile system check complete\n");
+    printf("\nFile system check has been completed\n");
     if (superblock_valid) {
         printf("All checks passed successfully\n");
     } else {

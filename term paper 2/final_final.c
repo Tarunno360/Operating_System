@@ -142,7 +142,7 @@ void superblock_validation_checker() {
         errors_fixed++;
         printf("Fixed: Set inode count to %u\n", INODE_COUNT);
     }
-    printf("Superblock validation checking has been completed.\n\n");
+    printf("Superblock validation complete.\n\n");
 }
 
 void inode_bitmap_checker() {
@@ -166,7 +166,7 @@ void inode_bitmap_checker() {
             printf("Fixed: Set inode %u in bitmap\n", i);
         }
     }
-    printf("Inode bitmap validation checking has been completed.\n\n");
+    printf("Inode bitmap validation complete.\n\n");
 }
 
 void data_bitmap_and_bad_block_checker(uint32_t *block_refs, uint32_t *dup_blocks) {
@@ -207,7 +207,7 @@ void data_bitmap_and_bad_block_checker(uint32_t *block_refs, uint32_t *dup_block
             printf("Fixed: Set data block %u in bitmap\n", i);
         }
     }
-    printf("Data bitmap and bad block validation checking has been completed.\n\n");
+    printf("Data bitmap and bad block validation complete.\n\n");
 }
 
 
@@ -223,7 +223,7 @@ void duplicate_checker(uint32_t *block_refs, uint32_t *dup_blocks) {
             printf("Warning: Duplicate block %u not fixed (requires complex reallocation)\n", i);
         }
     }
-    printf("Duplicate block checking has been completed.\n\n");
+    printf("Duplicate block check complete.\n\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -279,12 +279,11 @@ int main(int argc, char *argv[]) {
 
     printf("Your provided .img file has:\n");
     printf("Total errors: %d\n", errors_detected);
-    printf("Total errors fixed by our Consistancy checker: %d\n", errors_fixed);
+    printf("Total errors fixed by our checker: %d\n", errors_fixed);
     if (errors_detected == errors_fixed) {
-        printf("All the errors in your file system is fixed by our Consistancy checker.\n");
-        printf("Your file system is now consistent.\n");
+        printf("File system is now consistent.\n");
     } else {
-        printf("Sorry. Some of your errors could not be fixed But we tried our best.\n");
+        printf("Some errors could not be fixed.\n");
     }
 
     return errors_detected == errors_fixed ? 0 : 1;
