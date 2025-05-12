@@ -58,7 +58,7 @@ void main()
 			fac_res *= i;
 		}
 		fp = fopen("factorial.txt", "w");
-		fprintf(fp, "%d\n", fac_res);
+		fprintf(fp, "%d", fac_res);
 		fclose(fp);
 	}
 	
