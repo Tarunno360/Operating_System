@@ -30,7 +30,7 @@ char **tokenize(char *line) {
     int token_len = 0;
 
     while (i < length) {
-        if (isspace(line[i]) && token_len == 0) { 
+        if (isspace(line[i]) && token_len == 0) {  //surutei space diye dile jate omit hoy
             i++;
             continue;
         }
@@ -43,7 +43,7 @@ char **tokenize(char *line) {
             }
             if (i < length) i++;  
             while (i < length && !isspace(line[i])) {
-                if (line[i] == '\\' && i + 1 < length) {
+                if (line[i] == '\\' && i + 1 < length) { //check for "" and then add the next char quoted jinish gula ke handle kore 
                     i++; 
                     current_token[token_len++] = line[i++];
                 } else {
@@ -272,7 +272,7 @@ int main() {
 
     while (1) {
         printf("mysh> ");
-        fflush(stdout);
+        fflush(stdout); //promt is printing without completing process 
 
         if (!fgets(input, MAX_INPUT, stdin)) break;
         if (input[0] == '\n') continue;
