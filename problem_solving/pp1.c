@@ -12,6 +12,7 @@ void *t_func2(int *id);
 int sum = 15;
 pthread_mutex_t m;
 sem_t s;
+//comment added
 
 int main() {
     pthread_t t[2];
