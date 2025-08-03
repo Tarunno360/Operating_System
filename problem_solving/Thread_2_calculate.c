@@ -34,3 +34,4 @@ void *func_thread2(int *n){
 	printf(" %d",n[i]);
 	}
 }
+//restoring 2
